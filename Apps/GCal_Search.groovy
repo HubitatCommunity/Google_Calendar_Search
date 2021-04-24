@@ -1,6 +1,6 @@
 /**
  *  GCal Search v1.0
- *  https://github.com/HubitatCommunity/Google_Calendar_Search/new/main
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
  *  Originally posted on the SmartThings Community in 2017:https://community.smartthings.com/t/updated-3-27-18-gcal-search/80042
@@ -28,7 +28,7 @@ definition(
     description: "Integrates Hubitat with Google Calendar events to toggle virtual switch.",
     category: "Convenience",
     documentationLink: "https://community.hubitat.com/t/release-cocohue-hue-bridge-integration-including-scenes/27978",
-    importUrl: "https://github.com/HubitatCommunity/Google_Calendar_Search/new/main",
+    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
