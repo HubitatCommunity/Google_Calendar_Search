@@ -1,6 +1,6 @@
 /**
  *  GCal Search Trigger Child Application v1.0
- *  https://github.com/HubitatCommunity/Google_Calendar_Search/new/main/Apps
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
  *  Originally posted on the SmartThings Community in 2017:https://community.smartthings.com/t/updated-3-27-18-gcal-search/80042
@@ -29,7 +29,7 @@ definition(
     category: "Convenience",
     parent: "HubitatCommunity:GCal Search",
     documentationLink: "https://community.hubitat.com/t/release-cocohue-hue-bridge-integration-including-scenes/27978",
-    importUrl: "https://github.com/HubitatCommunity/Google_Calendar_Search/new/main/Apps",
+    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger",
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
