@@ -27,7 +27,7 @@ definition(
     author: "Mike Nestor & Anthony Pastor, cometfish, ritchierich",
     description: "Integrates Hubitat with Google Calendar events to toggle virtual switch.",
     category: "Convenience",
-    documentationLink: "https://community.hubitat.com/t/release-cocohue-hue-bridge-integration-including-scenes/27978",
+    documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
     importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
     iconUrl: "",
     iconX2Url: "",
