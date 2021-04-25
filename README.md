@@ -1,7 +1,7 @@
 # Google_Calendar_Search
 Hubitat Google Calendar Search
 
-For discussion and more information, visit the <a href="https://community.hubitat.com/t/release-cocohue-hue-bridge-integration-including-scenes/27978">Hubitat Community forum thread</a>.
+For discussion and more information, visit the <a href="https://community.hubitat.com/t/release-google-calendar-search/71397">[RELEASE] Google Calendar Search</a>.
 
 ## To Install
 1. Back up your hub and save a local copy before proceeding.
