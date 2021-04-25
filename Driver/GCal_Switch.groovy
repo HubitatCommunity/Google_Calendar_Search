@@ -1,6 +1,6 @@
 /**
  *  GCal Switch Driver v1.0
- *  https://github.com/HubitatCommunity/Google_Calendar_Search/new/main
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
  *
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
