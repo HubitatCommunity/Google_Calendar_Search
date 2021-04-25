@@ -15,25 +15,29 @@ For discussion and more information, visit the <a href="https://community.hubita
 
 ## Feature Documentation
 1. Login to the Google Cloud Console: https://console.cloud.google.com
-2. In the left navigation, click APIs & Services, and then choose Create Project on the right
+2. In the left navigation, click APIs & Services, and then choose **Create Project** on the right
 ![image](https://user-images.githubusercontent.com/10900324/115976568-44281e00-a53d-11eb-9d7e-03689c5bb3ac.png)
-3. Give your project a name and click Create
+3. Give your project a name and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
-4. In the left navigation, click Credentials
-5. At the top, click + Create Credentials and choose OAuth client ID
+4. In the left navigation, click **Credentials**
+5. At the top, click **+ Create Credentials** and choose **OAuth client ID**
 ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
-6. Set Application type to Desktop app, set a Name, and click Create
+6. Set Application type to Desktop app, set a Name, and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976744-0af0ad80-a53f-11eb-99d2-fbeac0d2cd3e.png)
-7. In the OAuth client created popup, copy the Client ID and Client Secret into your favorite text editor to use in the GCal Search HE app and click OK
+7. In the OAuth client created popup, copy the Client ID and Client Secret into your favorite text editor to use in the GCal Search HE app and click **OK**
 ![image](https://user-images.githubusercontent.com/10900324/115976760-3d020f80-a53f-11eb-8b5e-85f749ccb395.png)
-8. In the top blue search, enter 'calendar' and choose Google Calendar API under Marketplace
+8. In the top blue search, enter 'calendar' and choose **Google Calendar API** under Marketplace
 ![image](https://user-images.githubusercontent.com/10900324/115977025-b569d000-a541-11eb-859a-410082044a67.png)
-9. Click Enable
+9. Click **Enable**
 ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
-10. Click the upper left "hamburger" and choose APIs & Services \ OAuth consent screen
+10. Click the upper left "hamburger" and choose APIs & Services \ **OAuth consent screen**
 ![image](https://user-images.githubusercontent.com/10900324/115977071-5a84a880-a542-11eb-8bdc-f74180ad9cbc.png)
-12. In the left navigation, click OAuth consent screen
-13. Choose External and click Create
+11. Choose External and click Create
 ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
-15. Set an App name, User support email, and Developer contact information and click Save and Continue
+12. Set an App name, User support email, and Developer contact information and click Save and Continue
 ![image](https://user-images.githubusercontent.com/10900324/115976691-6cfce300-a53e-11eb-881b-5e996868c97a.png)
+13. Click Add or Remove Scopes
+14. In the Manually add scopes, enter https://www.googleapis.com/auth/calendar.readonly and click **Add to Table**
+![image](https://user-images.githubusercontent.com/10900324/115977112-d121a600-a542-11eb-862b-a206b5d5c3d8.png)
+15. Click **Update**
+16. test
