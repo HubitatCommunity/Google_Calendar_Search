@@ -218,7 +218,7 @@ def utilitiesPage() {
         runIn(10, resyncChildApps)
         app.updateSetting("resyncNow",[type: "bool", value: false])
     }
-    dynamicPage(name: "utilitiesPage", title: "App Utilities", uninstall: false, install: false) {
+    dynamicPage(name: "utilitiesPage", title: "App Utilities", uninstall: false, install: false, nextPage: "mainPage") {
         section() {
 			paragraph "<b>All commands take effect immediately!</b>"
             input "clearCache", "bool", title: "Clear event cache", required: false, defaultValue: false, submitOnChange: true
