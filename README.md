@@ -19,19 +19,20 @@ For discussion and more information, visit the <a href="https://community.hubita
 ![image](https://user-images.githubusercontent.com/10900324/115976568-44281e00-a53d-11eb-9d7e-03689c5bb3ac.png)
 3. Give your project a name and click Create
 ![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
-5. In the left navigation, click Credentials
-6. At the top, click + Create Credentials and choose OAuth client ID
+4. In the left navigation, click Credentials
+5. At the top, click + Create Credentials and choose OAuth client ID
 ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
-7. Set Application type to Desktop app, set a Name, and click Create
+6. Set Application type to Desktop app, set a Name, and click Create
 ![image](https://user-images.githubusercontent.com/10900324/115976744-0af0ad80-a53f-11eb-99d2-fbeac0d2cd3e.png)
-8. In the OAuth client created popup, copy the Client ID and Client Secret into your favorite text editor to use in the GCal Search HE app and click OK
+7. In the OAuth client created popup, copy the Client ID and Client Secret into your favorite text editor to use in the GCal Search HE app and click OK
 ![image](https://user-images.githubusercontent.com/10900324/115976760-3d020f80-a53f-11eb-8b5e-85f749ccb395.png)
-9. In the top blue search, enter 'calendar' and choose Google Calendar API under Marketplace
-![image](https://user-images.githubusercontent.com/10900324/115976832-f19c3100-a53f-11eb-8df7-75ac9a7839d5.png)
-11. Click Enable
+8. In the top blue search, enter 'calendar' and choose Google Calendar API under Marketplace
+![image](https://user-images.githubusercontent.com/10900324/115977025-b569d000-a541-11eb-859a-410082044a67.png)
+9. Click Enable
 ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
-10. In the left navigation, click OAuth consent screen
-11. ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
+10. test
+11. In the left navigation, click OAuth consent screen
+12. ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
    Choose External and click Create
 12. ![image](https://user-images.githubusercontent.com/10900324/115976691-6cfce300-a53e-11eb-881b-5e996868c97a.png)
    Set an App name, User support email, and Developer contact information and click Save and Continue
