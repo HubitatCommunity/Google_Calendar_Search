@@ -10,7 +10,11 @@ For discussion and more information, visit the <a href="https://community.hubita
   * https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/Apps/GCal_Search_Trigger.groovy
 3. Install the driver from the "Driver" folder in this repository into the "Drivers Code" section of Hubitat:
   * https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy    
-4. Install an instance of app: go to **Apps > Add User App**, choose **GCal Search**, and follow the prompts.
+4. Follow the instructions below to setup your Google Auth
+5. Install an instance of app: go to **Apps > Add User App**, choose **GCal Search**, and follow the prompts.
 
 ## Feature Documentation
-You must first setup Google
+1. Login to the Google Cloud Console: https://console.cloud.google.com
+2. ![image](https://user-images.githubusercontent.com/10900324/115976568-44281e00-a53d-11eb-9d7e-03689c5bb3ac.png)
+   In the left navigation, click APIs & Services, and then choose Create Project on the right
+4. test
