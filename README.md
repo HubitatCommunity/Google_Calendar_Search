@@ -30,9 +30,10 @@ For discussion and more information, visit the <a href="https://community.hubita
 ![image](https://user-images.githubusercontent.com/10900324/115977025-b569d000-a541-11eb-859a-410082044a67.png)
 9. Click Enable
 ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
-10. test
-11. In the left navigation, click OAuth consent screen
-12. ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
-   Choose External and click Create
-12. ![image](https://user-images.githubusercontent.com/10900324/115976691-6cfce300-a53e-11eb-881b-5e996868c97a.png)
-   Set an App name, User support email, and Developer contact information and click Save and Continue
+10. Click the upper left "hamburger" and choose APIs & Services \ OAuth consent screen
+![image](https://user-images.githubusercontent.com/10900324/115977071-5a84a880-a542-11eb-8bdc-f74180ad9cbc.png)
+12. In the left navigation, click OAuth consent screen
+13. Choose External and click Create
+![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
+15. Set an App name, User support email, and Developer contact information and click Save and Continue
+![image](https://user-images.githubusercontent.com/10900324/115976691-6cfce300-a53e-11eb-881b-5e996868c97a.png)
