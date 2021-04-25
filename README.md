@@ -15,12 +15,12 @@ For discussion and more information, visit the <a href="https://community.hubita
 
 ## Feature Documentation
 1. Login to the Google Cloud Console: https://console.cloud.google.com
-2. ![image](https://user-images.githubusercontent.com/10900324/115976568-44281e00-a53d-11eb-9d7e-03689c5bb3ac.png)
-   In the left navigation, click APIs & Services, and then choose Create Project on the right
-3. ![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
-   Give your project a name and click Create
-4. In the left navigation, click Credentials
-5. ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
+2. In the left navigation, click APIs & Services, and then choose Create Project on the right
+![image](https://user-images.githubusercontent.com/10900324/115976568-44281e00-a53d-11eb-9d7e-03689c5bb3ac.png)
+3. Give your project a name and click Create
+![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
+5. In the left navigation, click Credentials
+6. ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
    At the top, click + Create Credentials and choose OAuth client ID
 6. ![image](https://user-images.githubusercontent.com/10900324/115976744-0af0ad80-a53f-11eb-99d2-fbeac0d2cd3e.png)
    Set Application type to Desktop app, set a Name, and click Create
