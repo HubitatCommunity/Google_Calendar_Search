@@ -1,5 +1,5 @@
 /**
- *  GCal Search Trigger Child Application v1.0
+ *  GCal Search Trigger Child Application v1.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.0" }
+def appVersion() { return "1.1" }
 
 definition(
     name: "GCal Search Trigger",
@@ -65,6 +65,7 @@ def selectCalendars() {
                 input name: "deviceName", type: "text", title: "Device Name", required: true, multiple: false, defaultValue: "${defName} Switch"
                 paragraph "Set Switch Default Value to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle."
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
+                input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
                 input name: "appName", type: "text", title: "Trigger Name", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
                 input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
             }
@@ -128,7 +129,7 @@ def getNextEvents() {
             def searchTerm = searchTerms[s].trim()
             logMsg.push("searchTerm: ${searchTerm}")
             for (int i = 0; i < items.size(); i++) {
-                def eventTitle = items[i].eventTitle
+                def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
                 logMsg.push("eventTitle: ${eventTitle}")
                 if (searchTerm == "*") {
                     foundMatch = true
