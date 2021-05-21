@@ -1,5 +1,5 @@
 /**
- *  GCal Search v1.0
+ *  GCal Search v1.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.0" }
+def appVersion() { return "1.1" }
 
 definition(
     name: "GCal Search",
@@ -36,7 +36,7 @@ definition(
 
 preferences {
     page(name: "mainPage")
-	  page(name: "authenticationPage")
+	page(name: "authenticationPage")
     page(name: "getUserCode")
     page name: "authenticationCheck"
     page(name: "utilitiesPage")
@@ -342,10 +342,15 @@ def getNextEvents(watchCalendar, search) {
     def evs = []
     if (state.events && state.events[watchCalendar]) {
         evs = state.events[watchCalendar]
-        logMsg.push("evs pulled from cache: ${evs}")
+        // Since state values are stored as strings, convert date values to date
+        for (int i = 0; i < evs.size(); i++) {
+            evs[i].eventStartTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", evs[i].eventStartTime)
+            evs[i].eventEndTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", evs[i].eventEndTime)
+        }
+        logMsg.push("events pulled from cache")
     } else {
         try {
-            def queryResponse = []
+            def queryResponse = []            
             httpGet(eventListParams) {
                 resp ->
                 queryResponse = resp.data
@@ -355,13 +360,14 @@ def getNextEvents(watchCalendar, search) {
                 for (int i = 0; i < queryResponse.items.size(); i++) {
                     def event = queryResponse.items[i]
                     def eventDetails = [:]
+                    eventDetails.timeZone = queryResponse.timeZone
                     eventDetails.eventTitle = event.summary.trim()
                     eventDetails.eventLocation = event?.location ? event.location : "none"
 
                     def eventAllDay
                     def eventStartTime
                     def eventEndTime
-
+                    
                     if (event.start.containsKey('date')) {
                         eventAllDay = true
                         def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd")
@@ -392,7 +398,7 @@ def getNextEvents(watchCalendar, search) {
             }
         }
     }
-    logMsg.push("evs: ${evs}")
+    logMsg.push("events: ${evs}")
     
     if (!state.isScheduled) {
         logMsg.push("scheduling cache in ${tempCacheMinutes}")
