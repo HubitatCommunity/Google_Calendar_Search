@@ -1,5 +1,5 @@
 /**
- *  GCal Search v1.1
+ *  GCal Search v1.2
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.1" }
+def appVersion() { return "1.2" }
 
 definition(
     name: "GCal Search",
