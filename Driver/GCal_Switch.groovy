@@ -1,5 +1,5 @@
 /**
- *  GCal Switch Driver v1.0
+ *  GCal Switch Driver v1.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
  *
  *
@@ -14,7 +14,7 @@
  *
  */
 
-def driverVersion() { return "1.0" }
+def driverVersion() { return "1.1" }
 
 metadata {
 	definition (name: "GCal Switch", namespace: "HubitatCommunity", author: "ritchierich") {
@@ -61,10 +61,12 @@ def refresh() {
 }
 
 def poll() {
+    unschedule()
     def logMsg = []
     
     // Update lastUpdated date and time
-    def nowDateTime = new Date().format("yyyy-MM-dd HH:mm:ss", location.timeZone)
+    //def nowDateTime = new Date().format("yyyy-MM-dd HH:mm:ss", location.timeZone)
+    def nowDateTime = new Date()
     sendEvent(name: "lastUpdated", value: nowDateTime, displayed: false)
     logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, AFTER ")
     
@@ -77,7 +79,15 @@ def poll() {
         result << sendEvent(name: "eventAllDay", value: item.eventAllDay )
         result << sendEvent(name: "eventStartTime", value: item.eventStartTime )
         result << sendEvent(name: "eventEndTime", value: item.eventEndTime )
-        determineSwitch(true)
+        
+        logMsg.push("nowDateTime(${nowDateTime}) < eventStartTime(${item.eventStartTime})")
+        if (nowDateTime < item.eventStartTime) {
+            scheduleSwitch("on", item.eventStartTime)
+            scheduleSwitch("off", item.eventEndTime)
+            logMsg.push("Scheduling On at ${item.eventStartTime}, and Off at ${item.eventEndTime}")
+        } else {
+            determineSwitch(true)
+        }
     } else {
         logMsg.push("no events found")
         result << sendEvent(name: "eventTitle", value: " ")
@@ -136,6 +146,24 @@ def determineSwitch(hasCurrentEvent) {
     logDebug("${logMsg}")
 }
 
+def scheduleSwitch(type, eventTime) {
+    logDebug("scheduleSwitch - scheduling switch ${type} at ${eventTime}")
+    if (type == "on") {
+        runOnce(eventTime, scheduleOn)
+    } else {
+        runOnce(eventTime, scheduleOff)
+    }
+}
+
+def scheduleOn() {
+    logDebug("scheduleOn - running determineSwitch")
+    determineSwitch(true)
+}
+
+def scheduleOff() {
+    logDebug("scheduleOff - running determineSwitch")
+    determineSwitch(false)
+}
 
 def clearEventCache() {
     parent.clearEventCache()
