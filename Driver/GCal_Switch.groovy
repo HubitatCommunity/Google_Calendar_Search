@@ -1,5 +1,5 @@
 /**
- *  GCal Switch Driver v1.1
+ *  GCal Switch Driver v1.1.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
  *
  *
@@ -14,7 +14,7 @@
  *
  */
 
-def driverVersion() { return "1.1" }
+def driverVersion() { return "1.1.1" }
 
 metadata {
 	definition (name: "GCal Switch", namespace: "HubitatCommunity", author: "ritchierich") {
@@ -63,17 +63,19 @@ def refresh() {
 def poll() {
     unschedule()
     def logMsg = []
-    
-    // Update lastUpdated date and time
-    //def nowDateTime = new Date().format("yyyy-MM-dd HH:mm:ss", location.timeZone)
+
     def nowDateTime = new Date()
-    sendEvent(name: "lastUpdated", value: nowDateTime, displayed: false)
-    logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, AFTER ")
+    def currentValue = device.currentSwitch
+    def defaultValue = determineSwitch(false)
+    def toggleValue = determineSwitch(true)
+    logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, currentValue: ${currentValue} AFTER ")
     
     def result = []
+    result << sendEvent(name: "lastUpdated", value: nowDateTime, displayed: false)
     def item = parent.getNextEvents()
     if (item && item.eventTitle) {
         logMsg.push("event found, item: ${item}")
+        
         result << sendEvent(name: "eventTitle", value: item.eventTitle )
         result << sendEvent(name: "eventLocation", value: item.eventLocation )
         result << sendEvent(name: "eventAllDay", value: item.eventAllDay )
@@ -82,20 +84,29 @@ def poll() {
         
         logMsg.push("nowDateTime(${nowDateTime}) < eventStartTime(${item.eventStartTime})")
         if (nowDateTime < item.eventStartTime) {
-            scheduleSwitch("on", item.eventStartTime)
-            scheduleSwitch("off", item.eventEndTime)
-            logMsg.push("Scheduling On at ${item.eventStartTime}, and Off at ${item.eventEndTime}")
+            scheduleSwitch(toggleValue, item.eventStartTime)
+            scheduleSwitch(defaultValue, item.eventEndTime)
+            logMsg.push("Scheduling ${toggleValue} at ${item.eventStartTime} and ${defaultValue} at ${item.eventEndTime}")
+            if (currentValue != defaultValue) {
+                logMsg.push("Turning ${defaultValue} switch")
+                result << sendEvent(name: "switch", value: defaultValue)
+            }
         } else {
-            determineSwitch(true)
+            scheduleSwitch(defaultValue, item.eventEndTime)
+            logMsg.push("Scheduling ${defaultValue} at ${item.eventEndTime}")
+            if (currentValue != toggleValue) {
+                logMsg.push("Turning ${toggleValue} switch")
+                result << sendEvent(name: "switch", value: toggleValue)
+            }
         }
     } else {
-        logMsg.push("no events found")
+        logMsg.push("no events found, turning ${defaultValue} switch")
         result << sendEvent(name: "eventTitle", value: " ")
         result << sendEvent(name: "eventLocation", value: " ")
         result << sendEvent(name: "eventAllDay", value: " ")
         result << sendEvent(name: "eventStartTime", value: " ")
         result << sendEvent(name: "eventEndTime", value: " ")
-        determineSwitch(false)
+        result << sendEvent(name: "switch", value: defaultValue)
     }
     
     logDebug("${logMsg}")
@@ -112,38 +123,26 @@ def off() {
 
 def determineSwitch(hasCurrentEvent) {
     def logMsg = ["determineSwitch - BEFORE hasCurrentEvent: ${hasCurrentEvent}"]
-    def defaultValue = (settings.switchValue == null) ? parent.getDefaultSwitchValue() : settings.switchValue
-    def toggleSwitch = (defaultValue == null) ? true : false
-    def toggleValue = defaultValue
     def currentValue = device.currentSwitch
-    logMsg.push("defaultValue: ${defaultValue}, toggleSwitch: ${toggleSwitch}, toggleValue: ${toggleValue}, currentValue: ${currentValue} AFTER ")
+    def defaultValue = (settings.switchValue == null) ? parent.getDefaultSwitchValue() : settings.switchValue
+    def toggleValue = (defaultValue == "on") ? "off" : "on"
+    logMsg.push("currentValue: ${currentValue}, defaultValue: ${defaultValue}, toggleValue: ${toggleValue} AFTER ")
+    def answer
     
     if (currentValue == null) {
-        toggleSwitch = true
-        toggleValue = defaultValue
+        currentValue = defaultValue
     }
     
-    if (hasCurrentEvent && currentValue == defaultValue) {
-        toggleSwitch = true
-        toggleValue = (defaultValue == "on") ? "off" : "on"
+    if (hasCurrentEvent) {
+        answer = toggleValue
+    } else {
+        answer = defaultValue
     }
     
-    if (!hasCurrentEvent && currentValue != defaultValue) {
-        toggleSwitch = true
-        toggleValue = (defaultValue == "on") ? "on" : "off"
-    }
-    
-    logMsg.push("toggleValue: ${toggleValue}")
-    if (toggleSwitch) {
-        if (toggleValue == "on") {
-            logMsg.push("Turning on switch")
-            on()
-        } else {
-            logMsg.push("Turning off switch")
-            off()
-        }
-    }
+    logMsg.push("answer: ${answer}")
     logDebug("${logMsg}")
+    
+    return answer
 }
 
 def scheduleSwitch(type, eventTime) {
@@ -156,13 +155,13 @@ def scheduleSwitch(type, eventTime) {
 }
 
 def scheduleOn() {
-    logDebug("scheduleOn - running determineSwitch")
-    determineSwitch(true)
+    logDebug("scheduleOn - turning on switch}")
+    on()
 }
 
 def scheduleOff() {
-    logDebug("scheduleOff - running determineSwitch")
-    determineSwitch(false)
+    logDebug("scheduleOff - turning off switch}")
+    off()
 }
 
 def clearEventCache() {
