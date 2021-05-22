@@ -1,5 +1,5 @@
 /**
- *  GCal Search v1.2
+ *  GCal Search v1.2.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.2" }
+def appVersion() { return "1.2.1" }
 
 definition(
     name: "GCal Search",
@@ -342,12 +342,12 @@ def getNextEvents(watchCalendar, search) {
     def evs = []
     if (state.events && state.events[watchCalendar]) {
         evs = state.events[watchCalendar]
+        logMsg.push("events pulled from cache")
         // Since state values are stored as strings, convert date values to date
         for (int i = 0; i < evs.size(); i++) {
-            evs[i].eventStartTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", evs[i].eventStartTime)
-            evs[i].eventEndTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", evs[i].eventEndTime)
+            evs[i].eventStartTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssX", evs[i].eventStartTime)
+            evs[i].eventEndTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssX", evs[i].eventEndTime)
         }
-        logMsg.push("events pulled from cache")
     } else {
         try {
             def queryResponse = []            
