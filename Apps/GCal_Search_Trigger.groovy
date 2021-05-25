@@ -1,5 +1,5 @@
 /**
- *  GCal Search Trigger Child Application v1.3.0
+ *  GCal Search Trigger Child Application v1.3.1
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.3.0" }
+def appVersion() { return "1.3.1" }
 
 definition(
     name: "GCal Search Trigger",
@@ -54,8 +54,9 @@ def selectCalendars() {
         section("<h3><b><u>Calendar Search</u></b></h3>") {
             //we can't do multiple calendars because the api doesn't support it and it could potentially cause a lot of traffic to happen
             input name: "watchCalendars", title:"", type: "enum", required:true, multiple:false, description: "Which calendar do you want to search?", options:calendars, submitOnChange: true
-            paragraph "Multiple search strings may be entered separated by commas.  By default the search string is matched to the calendar title using a starts with search. Include a * to perform a contains search or multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School."
+            paragraph '<p>Search String Options:</p><ul style="list-style-position: inside;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li></ul>'
             input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
+            input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
         }
         
         if ( settings.search ) {
@@ -128,15 +129,10 @@ def initialize() {
     if (!childDevice) {
         logDebug("initialize - creating device: deviceID: ${state.deviceID}")
         childDevice = addChildDevice("HubitatCommunity", "GCal Switch", "GCal_${app.id}", null, [name: "GCal Switch", label: deviceName])
-        log.debug "${offsetStart}, ${offsetEnd}"
         childDevice.updateSetting("isDebugEnabled",[value:"${isDebugEnabled}",type:"bool"])
         childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
-        childDevice.updateSetting("offsetStart",[value:"${offsetStart.toInteger()}",type:"decimal"])
-        childDevice.updateSetting("offsetEnd",[value:"${offsetEnd.toInteger()}",type:"decimal"])
     } else {
         childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
-        childDevice.updateSetting("offsetStart",[value:"${offsetStart.toInteger()}",type:"decimal"])
-        childDevice.updateSetting("offsetEnd",[value:"${offsetEnd.toInteger()}",type:"decimal"])
     }
     if (!state.isPaused) {
         if ( settings.whenToRun == "Once Per Day" ) {
@@ -172,15 +168,26 @@ def getNextEvents() {
     def item = []
     
     if (items && items.size() > 0) {
-        def searchTerms = search.toString().split(",")
+        def searchTerms = search.toString()
+        if (caseSensitive == false) {
+            searchTerms = searchTerms.toLowerCase()
+        }
+        searchTerms = searchTerms.split(",")
         def foundMatch = false
         for (int s = 0; s < searchTerms.size(); s++) {
             def searchTerm = searchTerms[s].trim()
             logMsg.push("searchTerm: ${searchTerm}")
             for (int i = 0; i < items.size(); i++) {
                 def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
+                if (caseSensitive == false) {
+                    eventTitle = eventTitle.toLowerCase()
+                }
                 logMsg.push("eventTitle: ${eventTitle}")
                 if (searchTerm == "*") {
+                    foundMatch = true
+                    item = items[i]
+                    break
+                } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
                     foundMatch = true
                     item = items[i]
                     break
@@ -208,8 +215,27 @@ def getNextEvents() {
                     }
                 }
             }
-            
+
             if (foundMatch) {
+                item.scheduleStartTime = new Date(item.eventStartTime.getTime())
+                if (settings.offsetStart != null && settings.offsetStart != "") {
+                    def origStartTime = new Date(item.eventStartTime.getTime())
+                    int offsetStart = settings.offsetStart.toInteger()
+                    def tempStartTime = item.scheduleStartTime.getTime()
+                    tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
+                    item.scheduleStartTime.setTime(tempStartTime)
+                    logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
+                }
+
+                item.scheduleEndTime = new Date(item.eventEndTime.getTime())
+                if (settings.offsetEnd != null && settings.offsetEnd != "") {
+                    def origEndTime = new Date(item.eventEndTime.getTime())
+                    int offsetEnd = settings.offsetEnd.toInteger()
+                    def tempEndTime = item.scheduleEndTime.getTime()
+                    tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                    item.scheduleEndTime.setTime(tempEndTime)
+                    logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
+                }
                 break
             }
         }
