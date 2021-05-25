@@ -1,5 +1,5 @@
 /**
- *  GCal Search Trigger Child Application v1.1
+ *  GCal Search Trigger Child Application v1.2.0
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.1" }
+def appVersion() { return "1.2.0" }
 
 definition(
     name: "GCal Search Trigger",
@@ -51,22 +51,45 @@ def selectCalendars() {
 				input(name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", submitOnChange: true)
 			}
 		}
-        section("Required Info") {                               
+        section("<h3><b><u>Calendar Search</u></b></h3>") {
             //we can't do multiple calendars because the api doesn't support it and it could potentially cause a lot of traffic to happen
             input name: "watchCalendars", title:"", type: "enum", required:true, multiple:false, description: "Which calendar do you want to search?", options:calendars, submitOnChange: true
             paragraph "Multiple search strings may be entered separated by commas.  By default the search string is matched to the calendar title using a starts with search. Include a * to perform a contains search or multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School."
-            input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true  
+            input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
         }
         
         if ( settings.search ) {
-            section("Preferences") {
-                input name: "timeToRun", type: "time", title: "Time to run", required: true
+            section("<h3><b><u>Schedule</u></b></h3>") {
+                paragraph "Calendar searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression."  
+                input name: "whenToRun", type: "enum", title: "When to Run", required: true, options:["Once Per Day", "Periodically"], submitOnChange: true
+                if ( settings.whenToRun == "Once Per Day" ) {
+                    input name: "timeToRun", type: "time", title: "Time to run", required: true
+                }
+                if ( settings.whenToRun == "Periodically" ) {
+                    input name: "frequency", type: "enum", title: "Frequency", required: true, options:["Hours", "Minutes", "Cron String"], submitOnChange: true
+                    if ( settings.frequency == "Hours" ) {
+                        input "hours", "number", title: "Every N Hours: (range 1-12)", range: "1..12", required: true, submitOnChange: true
+                        input name: "hourlyTimeToRun", type: "time", title: "Starting at", defaultValue: "08:00", required: true
+                    }
+                    if ( settings.frequency == "Minutes" ) {
+                        input name: "minutes", type: "enum", title: "Every N Minutes", required: true, options:["1", "2", "3", "4", "5", "6", "10", "12", "15", "20", "30"], submitOnChange: true
+                    }
+                    if ( settings.frequency == "Cron String" ) {
+                        paragraph "If not familiar with Cron Strings, please visit <a href='https://www.freeformatter.com/cron-expression-generator-quartz.html#' target='_blank'>Cron Expression Generator</a>"
+                        input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
+                    }
+                }
+            }
+        }
+        
+        if ( settings.search ) {
+            section("<h3><b><u>Preferences</u></b></h3>") {
                 def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
-                input name: "deviceName", type: "text", title: "Device Name", required: true, multiple: false, defaultValue: "${defName} Switch"
+                input name: "deviceName", type: "text", title: "Switch Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                 paragraph "Set Switch Default Value to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle."
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
                 input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
-                input name: "appName", type: "text", title: "Trigger Name", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
+                input name: "appName", type: "text", title: "Trigger Name (Child Search Trigger App Name)", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
                 input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
             }
         }
@@ -96,7 +119,6 @@ def initialize() {
    	
     // Sets Label of Trigger
     updateAppLabel()
-    //app.updateLabel(settings.appName)
     
     state.deviceID = "GCal_${app.id}"
     def childDevice = getChildDevice(state.deviceID)
@@ -107,7 +129,24 @@ def initialize() {
         childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
     }
     if (!state.isPaused) {
-        schedule(timeToRun, poll)
+        if ( settings.whenToRun == "Once Per Day" ) {
+            schedule(timeToRun, poll)
+            logDebug("initialize - creating schedule once per day at: ${timeToRun}")
+        } else {
+            def cronString = ""
+            if ( settings.frequency == "Hours" ) {
+                def hourlyTimeToRun = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSX", settings.hourlyTimeToRun)
+                def hour = hourlyTimeToRun.hours
+                def minute = hourlyTimeToRun.minutes
+                cronString = "0 ${minute} ${hour}/${hours} * * ? *"
+            } else if ( settings.frequency == "Minutes" ) {
+                cronString = "0 0/${settings.minutes} * * * ?"
+            } else if ( settings.frequency == "Cron String" ) {
+                cronString = settings.cronString
+            }
+            schedule(cronString, poll)
+            logDebug("initialize - creating schedule with cron string: ${cronString}")
+        }
     }
 }
 
