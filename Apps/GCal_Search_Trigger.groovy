@@ -1,5 +1,5 @@
 /**
- *  GCal Search Trigger Child Application v1.2.0
+ *  GCal Search Trigger Child Application v1.3.0
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.2.0" }
+def appVersion() { return "1.3.0" }
 
 definition(
     name: "GCal Search Trigger",
@@ -46,9 +46,9 @@ def selectCalendars() {
     return dynamicPage(name: "selectCalendars", title: "Create new calendar search", install: true, uninstall: true, nextPage: "" ) {
     	section(){
 			if (!state.isPaused) {
-				input(name: "pauseButton", type: "button", title: "Pause", backgroundColor: "Green", textColor: "white", submitOnChange: true)
+				input name: "pauseButton", type: "button", title: "Pause", backgroundColor: "Green", textColor: "white", submitOnChange: true
 			} else {
-				input(name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", submitOnChange: true)
+				input name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", submitOnChange: true
 			}
 		}
         section("<h3><b><u>Calendar Search</u></b></h3>") {
@@ -68,7 +68,7 @@ def selectCalendars() {
                 if ( settings.whenToRun == "Periodically" ) {
                     input name: "frequency", type: "enum", title: "Frequency", required: true, options:["Hours", "Minutes", "Cron String"], submitOnChange: true
                     if ( settings.frequency == "Hours" ) {
-                        input "hours", "number", title: "Every N Hours: (range 1-12)", range: "1..12", required: true, submitOnChange: true
+                        input name: "hours", type: "number", title: "Every N Hours: (range 1-12)", range: "1..12", required: true, submitOnChange: true
                         input name: "hourlyTimeToRun", type: "time", title: "Starting at", defaultValue: "08:00", required: true
                     }
                     if ( settings.frequency == "Minutes" ) {
@@ -79,6 +79,9 @@ def selectCalendars() {
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
+                paragraph "If you would like the switch to be toggled in advanced of the calendar event start and/or end times, enter an offset below"
+                input name: "offsetStart", type: "decimal", title: "Optional: Event Start Offset in minutes (+/-)", required: false
+                input name: "offsetEnd", type: "decimal", title: "Optional: Event End Offset in minutes (+/-)", required: false
             }
         }
         
@@ -125,8 +128,15 @@ def initialize() {
     if (!childDevice) {
         logDebug("initialize - creating device: deviceID: ${state.deviceID}")
         childDevice = addChildDevice("HubitatCommunity", "GCal Switch", "GCal_${app.id}", null, [name: "GCal Switch", label: deviceName])
+        log.debug "${offsetStart}, ${offsetEnd}"
         childDevice.updateSetting("isDebugEnabled",[value:"${isDebugEnabled}",type:"bool"])
         childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
+        childDevice.updateSetting("offsetStart",[value:"${offsetStart.toInteger()}",type:"decimal"])
+        childDevice.updateSetting("offsetEnd",[value:"${offsetEnd.toInteger()}",type:"decimal"])
+    } else {
+        childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
+        childDevice.updateSetting("offsetStart",[value:"${offsetStart.toInteger()}",type:"decimal"])
+        childDevice.updateSetting("offsetEnd",[value:"${offsetEnd.toInteger()}",type:"decimal"])
     }
     if (!state.isPaused) {
         if ( settings.whenToRun == "Once Per Day" ) {
