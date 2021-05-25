@@ -1,5 +1,5 @@
 /**
- *  GCal Search v1.2.1
+ *  GCal Search v1.3.0
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
@@ -19,7 +19,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.2.1" }
+def appVersion() { return "1.3.0" }
 
 definition(
     name: "GCal Search",
@@ -284,7 +284,7 @@ def getCalendarList() {
                 logMsg.push("resp callback ${resp.data}")
                 resp.data.items.each {
                     stat ->
-                        stats[stat.id] = stat.summary
+                        stats[stat.id] = (stat.summaryOverride) ? stat.summaryOverride : stat.summary
                 }
 
         }
