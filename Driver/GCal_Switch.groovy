@@ -1,5 +1,5 @@
 /**
- *  GCal Switch Driver v1.1.1
+ *  GCal Switch Driver v1.2.0
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
  *
  *
@@ -14,7 +14,7 @@
  *
  */
 
-def driverVersion() { return "1.1.1" }
+def driverVersion() { return "1.2.0" }
 
 metadata {
 	definition (name: "GCal Switch", namespace: "HubitatCommunity", author: "ritchierich") {
@@ -36,6 +36,8 @@ metadata {
     preferences {
 		input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, options:["on","off"]
+        input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
+        input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
     }
 }
 
@@ -82,18 +84,38 @@ def poll() {
         result << sendEvent(name: "eventStartTime", value: item.eventStartTime )
         result << sendEvent(name: "eventEndTime", value: item.eventEndTime )
         
-        logMsg.push("nowDateTime(${nowDateTime}) < eventStartTime(${item.eventStartTime})")
-        if (nowDateTime < item.eventStartTime) {
-            scheduleSwitch(toggleValue, item.eventStartTime)
-            scheduleSwitch(defaultValue, item.eventEndTime)
-            logMsg.push("Scheduling ${toggleValue} at ${item.eventStartTime} and ${defaultValue} at ${item.eventEndTime}")
+        def eventStartTime = new Date(item.eventStartTime.getTime())
+        if (settings.offsetStart != null && settings.offsetStart != "") {
+            def origStartTime = new Date(item.eventStartTime.getTime())
+            int offsetStart = settings.offsetStart.toInteger()
+            def tempStartTime = eventStartTime.getTime()
+            tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
+            eventStartTime.setTime(tempStartTime)
+            logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${eventStartTime}")
+        }
+        
+        def eventEndTime = new Date(item.eventEndTime.getTime())
+        if (settings.offsetEnd != null && settings.offsetEnd != "") {
+            def origEndTime = new Date(item.eventEndTime.getTime())
+            int offsetEnd = settings.offsetEnd.toInteger()
+            def tempEndTime = eventEndTime.getTime()
+            tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+            eventEndTime.setTime(tempEndTime)
+            logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${eventEndTime}")
+        }
+        
+        logMsg.push("nowDateTime(${nowDateTime}) < eventStartTime(${eventStartTime})")
+        if (nowDateTime < eventStartTime) {
+            scheduleSwitch(toggleValue, eventStartTime)
+            scheduleSwitch(defaultValue, eventEndTime)
+            logMsg.push("Scheduling ${toggleValue} at ${eventStartTime} and ${defaultValue} at ${eventEndTime}")
             if (currentValue != defaultValue) {
                 logMsg.push("Turning ${defaultValue} switch")
                 result << sendEvent(name: "switch", value: defaultValue)
             }
         } else {
-            scheduleSwitch(defaultValue, item.eventEndTime)
-            logMsg.push("Scheduling ${defaultValue} at ${item.eventEndTime}")
+            scheduleSwitch(defaultValue, eventEndTime)
+            logMsg.push("Scheduling ${defaultValue} at ${eventEndTime}")
             if (currentValue != toggleValue) {
                 logMsg.push("Turning ${toggleValue} switch")
                 result << sendEvent(name: "switch", value: toggleValue)
