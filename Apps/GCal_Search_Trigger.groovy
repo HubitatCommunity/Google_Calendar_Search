@@ -1,5 +1,6 @@
+def appVersion() { return "2.0.0" }
 /**
- *  GCal Search Trigger Child Application v1.3.1
+ *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
@@ -19,7 +20,6 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.3.1" }
 
 definition(
     name: "GCal Search Trigger",
@@ -43,7 +43,7 @@ def selectCalendars() {
     def calendars = parent.getCalendarList()
     logDebug "selectCalendars - Calendar list = ${calendars}"
     
-    return dynamicPage(name: "selectCalendars", title: "Create new calendar search", install: true, uninstall: true, nextPage: "" ) {
+    return dynamicPage(name: "selectCalendars", title: "${parent.getFormat("title", "GCal Search Trigger Version ${appVersion()}, Create new calendar search")}", install: true, uninstall: true, nextPage: "" ) {
     	section(){
 			if (!state.isPaused) {
 				input name: "pauseButton", type: "button", title: "Pause", backgroundColor: "Green", textColor: "white", submitOnChange: true
@@ -51,17 +51,19 @@ def selectCalendars() {
 				input name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", submitOnChange: true
 			}
 		}
-        section("<h3><b><u>Calendar Search</u></b></h3>") {
+        section("${parent.getFormat("box", "Search Preferences")}") {
             //we can't do multiple calendars because the api doesn't support it and it could potentially cause a lot of traffic to happen
-            input name: "watchCalendars", title:"", type: "enum", required:true, multiple:false, description: "Which calendar do you want to search?", options:calendars, submitOnChange: true
-            paragraph '<p>Search String Options:</p><ul style="list-style-position: inside;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li></ul>'
+            input name: "watchCalendars", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:calendars, submitOnChange: true
+            paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li></ul>'
             input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
             input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+            input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
+            paragraph "${parent.getFormat("line")}"
         }
         
         if ( settings.search ) {
-            section("<h3><b><u>Schedule</u></b></h3>") {
-                paragraph "Calendar searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression."  
+            section("${parent.getFormat("box", "Schedule Settings")}") {
+                paragraph "${parent.getFormat("text", "Calendar searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression.")}"
                 input name: "whenToRun", type: "enum", title: "When to Run", required: true, options:["Once Per Day", "Periodically"], submitOnChange: true
                 if ( settings.whenToRun == "Once Per Day" ) {
                     input name: "timeToRun", type: "time", title: "Time to run", required: true
@@ -76,32 +78,44 @@ def selectCalendars() {
                         input name: "minutes", type: "enum", title: "Every N Minutes", required: true, options:["1", "2", "3", "4", "5", "6", "10", "12", "15", "20", "30"], submitOnChange: true
                     }
                     if ( settings.frequency == "Cron String" ) {
-                        paragraph "If not familiar with Cron Strings, please visit <a href='https://www.freeformatter.com/cron-expression-generator-quartz.html#' target='_blank'>Cron Expression Generator</a>"
+                        paragraph "${parent.getFormat("text", "If not familiar with Cron Strings, please visit <a href='https://www.freeformatter.com/cron-expression-generator-quartz.html#' target='_blank'>Cron Expression Generator</a>")}"
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
-                paragraph "If you would like the switch to be toggled in advanced of the calendar event start and/or end times, enter an offset below"
-                input name: "offsetStart", type: "decimal", title: "Optional: Event Start Offset in minutes (+/-)", required: false
-                input name: "offsetEnd", type: "decimal", title: "Optional: Event End Offset in minutes (+/-)", required: false
+                paragraph "${parent.getFormat("text", "<u>End Time Preference</u>: By default, events from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
+                input name: "endTimePref", type: "enum", title: "End Time Preference", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
+                if ( settings.endTimePref == "Number of Hours from Now" ) {
+                    input name: "endTimeHours", type: "number", title: "Number of hours from now", required: true
+                }
+                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: If an event is found that is in the future, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting.  This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.")}"
+                input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
+                input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
+                paragraph "${parent.getFormat("line")}"
             }
         }
         
         if ( settings.search ) {
-            section("<h3><b><u>Preferences</u></b></h3>") {
+            section("${parent.getFormat("box", "Child Switch Preferences")}") {
                 def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
-                input name: "deviceName", type: "text", title: "Switch Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
-                paragraph "Set Switch Default Value to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle."
+                input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
+                paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle from this value.")}"
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
-                input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
-                input name: "appName", type: "text", title: "Trigger Name (Child Search Trigger App Name)", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
+                paragraph "${parent.getFormat("line")}"
+            }
+        }
+        
+        if ( settings.search ) {
+            section("${parent.getFormat("box", "App Preferences")}") {
+                def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
+                input name: "appName", type: "text", title: "Name this child app", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
                 input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
+                paragraph "${parent.getFormat("line")}"
             }
         }
             
         if ( state.installed ) {
 	    	section ("Remove Trigger and Corresponding Device") {
-            	paragraph "ATTENTION: The only way to uninstall this trigger and the corresponding device is by clicking the button below.\n" +                		
-                		  "Trying to uninstall the corresponding device from within that device's preferences will NOT work."
+            	paragraph "ATTENTION: The only way to uninstall this trigger and the corresponding child switch device is by clicking the Remove button below. Trying to uninstall the corresponding device from within that device's preferences will NOT work."
             }
     	}   
 	}       
@@ -163,7 +177,22 @@ def getDefaultSwitchValue() {
 def getNextEvents() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
-    def items = parent.getNextEvents(settings.watchCalendars, search)
+    def endTimePreference
+    switch (settings.endTimePref) {        
+        case "End of Current Day":
+            endTimePreference = "endOfToday"
+            break
+        case "End of Next Day":
+            endTimePreference = "endOfTomorrow"
+            break
+        case "Number of Hours from Current Time":
+            endTimePreference = settings.endTimeHours
+            break
+        default:
+            endTimePreference = "endOfToday"
+    }
+
+    def items = parent.getNextEvents(settings.watchCalendars, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     def item = []
     
@@ -306,7 +335,7 @@ def updateAppLabel() {
 }
 
 private logDebug(msg) {
-    if (isDebugEnabled != false) {
+    if (isDebugEnabled != null && isDebugEnabled != false) {
         if (msg instanceof List && msg.size() > 0) {
             msg = msg.join(", ");
         }
