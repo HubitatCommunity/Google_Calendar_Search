@@ -1,0 +1,39 @@
+{
+  "packageName": "Google Calendar Search",
+  "author": "ritchierich",
+  "version": "1.0",
+  "minimumHEVersion": "1.4.2",
+  "dateReleased": "2021-04-24",
+  "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
+	"releaseNotes": "Added to HPM.",
+  "apps": [
+    {
+      "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
+      "name": "GCal Search",
+      "namespace": "HubitatCommunity",
+      "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": true
+    },
+    {
+      "id": "2cf93482-e02d-4ec8-8f04-2c2f5b5839dd",
+      "name": "GCal Search Trigger",
+      "namespace": "HubitatCommunity",
+      "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": false
+    }
+  ],
+  "drivers": [
+    {
+      "id": "9cca5110-9112-4857-a19b-f97de72f34ac",
+      "name": "GCal Switch",
+      "namespace": "HubitatCommunity",
+      "location": "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy",
+      "required": true
+    }
+  ]
+}
