@@ -1,5 +1,6 @@
+def appVersion() { return "2.0.0" }
 /**
- *  GCal Search v1.4.1
+ *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
  *
  *  Credits:
@@ -19,7 +20,6 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-def appVersion() { return "1.4.1" }
 
 definition(
     name: "GCal Search",
@@ -45,24 +45,27 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "GCal Search Version ${appVersion()}", uninstall: false, install: true) {
+    dynamicPage(name: "mainPage", title: "${getFormat("title", "GCal Search Version " + appVersion())}", uninstall: false, install: true) {
         if (atomicState.authToken) {
             getCalendarList()
 
             section() {
                 app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Calendar Search...", multiple: true)
+                paragraph "${getFormat("line")}"
             }
         }	  
-        section("Authentication") {
+        section("${getFormat("box", "Authentication")}") {
             href ("authenticationPage", title: "Google API Authorization", description: "Click for Google Authentication")
+            paragraph "${getFormat("line")}"
         }
-        section("Options") {
-            href "utilitiesPage", title: "Utilities", description: "Tap to access utilities"
-            paragraph "To streamline multiple child searches, calendar events are gathered once and cached.  Set the number of minutes you wish to cache the events.  You may always clear the cache on the Utilities page."
+        section("${getFormat("box", "Options")}") {
+            paragraph "${getFormat("text", "<u>Number of minutes to cache events</u>: To streamline multiple child searches, calendar events are gathered once and cached.  Set the number of minutes you wish to cache the events.  You may always clear the cache on the Utilities page or on the child device.")}"
             input "cacheThreshold", "number", title: "Number of minutes to cache events [default=5 minutes]", required: false
             input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
+            href "utilitiesPage", title: "Utilities", description: "Tap to access utilities"
+            paragraph "${getFormat("line")}"
         }
-        section("Removal") {
+        section("${getFormat("box", "Removal")}") {
             href ("removePage", description: "Click to remove ${app.label?:app.name}", title: "Remove GCal Search")
         }
     }
@@ -70,13 +73,13 @@ def mainPage() {
 
 def authenticationPage() {
     dynamicPage(name: "authenticationPage", uninstall: false, nextPage: "mainPage") {
-        section("Google Authentication") {
+        section("${getFormat("box", "Google Authentication")}") {
             if (!atomicState.authToken) {
-                paragraph "Enter your Google API credentials below:"
+                paragraph "${getFormat("text", "Enter your Google API credentials below:")}"
                 input "gaClientID", "text", title: "Google API Client ID", required: true, submitOnChange: true
                 input "gaClientSecret", "text", title: "Google API Client Secret", required: true, submitOnChange: true
             } else {
-                paragraph "<p><strong>Authentication process complete! Click Next to continue setup.</strong></p>"
+                paragraph "${getFormat("text", "<strong>Authentication process complete! Click Next to continue setup.</strong>")}"
             }
             if (gaClientID && gaClientSecret) {
                 if (!atomicState.deviceCode) {
@@ -85,15 +88,15 @@ def authenticationPage() {
                 }
                 if (atomicState.deviceCode && atomicState.verificationUrl && atomicState.userCode && !atomicState.authToken) {
                     paragraph "${authenticationInstructions(true)}"
-                    paragraph "<p>Copy the following code to leverage in Step 2: <span style='background-color: #ffff00;'>" + atomicState.userCode + "</span></p>"
+                    paragraph "${getFormat("text", "Copy the following code to leverage in Step 2: <span style='background-color: #ffff00;'>" + atomicState.userCode + "</span>")}"
                     href url: atomicState.verificationUrl, style: "external", required: true, title: "Step 2: Authenticate GCal Search", description: "Tap to enter User Code and your Google Credentials"
-                    paragraph "Once authenticated tap the button below to finish the authentication."
+                    paragraph "${getFormat("text", "Once authenticated tap the button below to finish the authentication.")}"
                     href "authenticationCheck", title: "Step 3: Check Authentication", description: "Tap to check authentication once you have successfully authenticated."
                 }
                 if (atomicState.userCode || !atomicState.authToken) {
-                    paragraph "At any time click the button below to restart the authentication process."
+                    paragraph "${getFormat("text", "At any time click the button below to restart the authentication process.")}"
                     href "authenticationReset", title: "Reset Google Authentication", description: "Tap to reset Google API Authentication and start over"
-                    paragraph "Select  '<'  at upper left corner to exit."
+                    paragraph "${getFormat("text", "Select  '<'  at upper left corner to exit.")}"
                 }
             }
         }
@@ -101,8 +104,8 @@ def authenticationPage() {
 }
 
 def authenticationInstructions(step1Complete) {
-    def text = "<p><span style='text-decoration: underline;'><strong>Three steps are required to complete the Google authentication process:</strong></span></p>"
-    text += "<ol style='list-style-position: inside;'>"
+    def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Three steps are required to complete the Google authentication process:</strong></span></p>"
+    text += "<ol style='list-style-position: inside;font-size:15px;'>"
     if (step1Complete) text += "<strike>"
     text += "<li>Tap the 'Get Google API User Code' button to get a User Code.&nbsp; Once received, copy the code into your clipboard as you will need it in step 2.</li>"
     if (step1Complete) text += "</strike>"
@@ -218,9 +221,9 @@ def utilitiesPage() {
         runIn(10, resyncChildApps)
         app.updateSetting("resyncNow",[type: "bool", value: false])
     }
-    dynamicPage(name: "utilitiesPage", title: "App Utilities", uninstall: false, install: false, nextPage: "mainPage") {
+    dynamicPage(name: "utilitiesPage", title: "${getFormat("box", "App Utilities")}", uninstall: false, install: false, nextPage: "mainPage") {
         section() {
-			paragraph "<b>All commands take effect immediately!</b>"
+            paragraph "${getFormat("text", "<b>All commands take effect immediately!</b>")}"
             input "clearCache", "bool", title: "Clear event cache", required: false, defaultValue: false, submitOnChange: true
             input "resyncNow", "bool", title: "Sync all calendar searches now", required: false, defaultValue: false, submitOnChange: true
 		}
@@ -236,9 +239,9 @@ def resyncChildApps() {
 }
 
 def removePage() {
-	dynamicPage(name: "removePage", title: "GCal Search\nRemove GCal Search and its Children", install: false, uninstall: true) {
+	dynamicPage(name: "removePage", title: "${getFormat("box", "Remove GCal Search and its Children")}", install: false, uninstall: true) {
 		section () {
-			paragraph("Removing GCal Search also removes all Devices!")
+            paragraph("${getFormat("text", "Removing GCal Search also removes all Devices!")}")
 		}
 	}
 }
@@ -312,7 +315,7 @@ def getCalendarList() {
     return stats
 }
 
-def getNextEvents(watchCalendar, search) {
+def getNextEvents(watchCalendar, search, endTimePreference) {
     def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}"]
     isTokenExpired("getNextEvents")
     def tempCacheMinutes = cacheThreshold ?: 5 // By default, cache is 5 minutes
@@ -323,7 +326,7 @@ def getNextEvents(watchCalendar, search) {
         orderBy: "startTime",
         singleEvents: true,
         timeMin: getCurrentTime(),
-        timeMax: getEndOfDay()
+        timeMax: getEndDate(endTimePreference)
     ]
     /*if (search != "") {
         pathParams['q'] = "${search}"
@@ -538,13 +541,29 @@ def getCurrentTime() {
    return d
 }
 
-def getEndOfDay() {
+def getEndDate(endTimePreference) {
     //RFC 3339 format
     //2015-06-20T11:39:45.0Z
     def endDate = new Date()
-    endDate.setHours(23);
-    endDate.setMinutes(59);
-    endDate.setSeconds(59);
+    int numberOfHours
+    
+    if (["endOfToday", "endOfTomorrow"].indexOf(endTimePreference) > -1) {
+        endDate.setHours(23);
+        endDate.setMinutes(59);
+        endDate.setSeconds(59);
+        
+        if (endTimePreference == "endOfTomorrow") {
+            numberOfHours = 24
+        }
+    } else {
+        numberOfHours = endTimePreference
+    }
+    
+    if (numberOfHours != null) {
+        def tempEndTime = endDate.getTime()
+        tempEndTime = tempEndTime + (numberOfHours * 1000 * 60 * 60)
+        endDate.setTime(tempEndTime)
+    }
 
     def d = endDate.format("yyyy-MM-dd'T'HH:mm:ss.SSSZ", location.timeZone)
     return d
@@ -583,8 +602,16 @@ def revokeAccess() {
 	}
 }
 
+def getFormat(type, displayText=""){ // Modified from @Stephack and @dman2306 Code   
+    def color = "#1A77C9"
+    if(type == "title") return "<h2 style='color:" + color + ";font-weight:bold'>${displayText}</h2>"
+    if(type == "box") return "<div style='color:white;text-align:left;background-color:#1A77C9;padding:2px;padding-left:10px;'><h3><b><u>${displayText}</u></b></h3></div>"
+    if(type == "text") return "<span style='font-size: 14pt;'>${displayText}</span>"
+    if(type == "line") return "<hr style='background-color:" + color + "; height: 1px; border: 0;'>"
+}
+
 private logDebug(msg) {
-    if (isDebugEnabled != false) {
+    if (isDebugEnabled != null && isDebugEnabled != false) {
         if (msg instanceof List && msg.size() > 0) {
             msg = msg.join(", ");
         }
