@@ -1,5 +1,6 @@
+def driverVersion() { return "2.0.0" }
 /**
- *  GCal Switch Driver v1.2.1
+ *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
  *
  *
@@ -13,8 +14,6 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
-
-def driverVersion() { return "1.2.1" }
 
 metadata {
 	definition (name: "GCal Switch", namespace: "HubitatCommunity", author: "ritchierich") {
@@ -169,7 +168,7 @@ def clearEventCache() {
 }
 
 private logDebug(msg) {
-    if (isDebugEnabled != false) {
+    if (isDebugEnabled != null && isDebugEnabled != false) {
         if (msg instanceof List && msg.size() > 0) {
             msg = msg.join(", ");
         }
