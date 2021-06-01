@@ -1,4 +1,4 @@
-def appVersion() { return "2.0.0" }
+def appVersion() { return "2.1.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -207,39 +207,41 @@ def getNextEvents() {
             def searchTerm = searchTerms[s].trim()
             logMsg.push("searchTerm: ${searchTerm}")
             for (int i = 0; i < items.size(); i++) {
+                def itemMatch = false
                 def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
                 if (caseSensitive == false) {
                     eventTitle = eventTitle.toLowerCase()
                 }
                 logMsg.push("eventTitle: ${eventTitle}")
                 if (searchTerm == "*") {
-                    foundMatch = true
-                    item = items[i]
-                    break
+                    itemMatch = true
                 } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
-                    foundMatch = true
-                    item = items[i]
-                    break
+                    itemMatch = true
                 } else if (searchTerm.indexOf("*") > -1) {
                     def searchList = searchTerm.toString().split("\\*")
                     for (int sL = 0; sL < searchList.size(); sL++) {
                         def searchItem = searchList[sL].trim()
                         if (eventTitle.indexOf(searchItem) > -1) {
-                            foundMatch = true
+                            itemMatch = true
                         } else {
-                            foundMatch = false
+                            itemMatch = true
                             break
                         }
                     }
-                    
-                    if (foundMatch) {
+                } else if (eventTitle.startsWith(searchTerm)) {
+                    itemMatch = true
+                }
+                
+                if (itemMatch) {
+                    foundMatch = true
+                    if (item == []) {
                         item = items[i]
-                        break
-                    }
-                } else {
-                    if (eventTitle.startsWith(searchTerm)) {
-                        foundMatch = true
-                        item = items[i]
+                    } else if (i < items.size()) {
+                        def newItem = items[i]
+                        if (item.eventEndTime >= newItem.eventStartTime) {
+                            item.eventEndTime = newItem.eventEndTime
+                        }
+                    } else {
                         break
                     }
                 }
