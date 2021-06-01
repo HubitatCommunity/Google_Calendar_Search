@@ -1,4 +1,4 @@
-def appVersion() { return "2.0.0" }
+def appVersion() { return "2.1.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -374,13 +374,13 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
                     if (event.start.containsKey('date')) {
                         eventAllDay = true
                         def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd")
-                        sdf.setTimeZone(TimeZone.getTimeZone(queryResponse.timeZone))            	
+                        sdf.setTimeZone(location.timeZone) 
                         eventStartTime = sdf.parse(event.start.date)
                         eventEndTime = new Date(sdf.parse(event.end.date).time - 60)
                     } else {
                         eventAllDay = false
                         def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-                        sdf.setTimeZone(TimeZone.getTimeZone(queryResponse.timeZone))	            
+                        sdf.setTimeZone(TimeZone.getTimeZone(eventDetails.timeZone))	
                         eventStartTime = sdf.parse(event.start.dateTime)
                         eventEndTime = sdf.parse(event.end.dateTime)
                     }
