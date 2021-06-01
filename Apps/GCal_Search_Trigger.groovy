@@ -1,4 +1,4 @@
-def appVersion() { return "2.1.0" }
+def appVersion() { return "2.1.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -224,14 +224,14 @@ def getNextEvents() {
                         if (eventTitle.indexOf(searchItem) > -1) {
                             itemMatch = true
                         } else {
-                            itemMatch = true
+                            itemMatch = false
                             break
                         }
                     }
                 } else if (eventTitle.startsWith(searchTerm)) {
                     itemMatch = true
                 }
-                
+                logMsg.push("itemMatch: ${itemMatch}")
                 if (itemMatch) {
                     foundMatch = true
                     if (item == []) {
@@ -272,6 +272,7 @@ def getNextEvents() {
         }
     }
     
+    logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     return item
 }
