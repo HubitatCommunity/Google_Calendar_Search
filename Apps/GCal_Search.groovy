@@ -1,4 +1,4 @@
-def appVersion() { return "2.1.1" }
+def appVersion() { return "2.2.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -316,17 +316,19 @@ def getCalendarList() {
 }
 
 def getNextEvents(watchCalendar, search, endTimePreference) {
-    def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}"]
+    def eventCache = atomicState.events
+    def cacheEndTimePreference = translateEndTimePref(eventCache[watchCalendar].endTimePref ?: endTimePreference)
+    endTimePreference = translateEndTimePref(endTimePreference)
+    def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}, cacheEndTimePreference: ${cacheEndTimePreference}"]
     isTokenExpired("getNextEvents")
-    def tempCacheMinutes = cacheThreshold ?: 5 // By default, cache is 5 minutes
-    tempCacheMinutes = tempCacheMinutes * 60
+    def cacheMilliseconds = (cacheThreshold ?: 5) * 60 * 1000 // By default, cache is 5 minutes
     
     def pathParams = [
         //maxResults: 1,
         orderBy: "startTime",
         singleEvents: true,
         timeMin: getCurrentTime(),
-        timeMax: getEndDate(endTimePreference)
+        timeMax: getEndDate(cacheEndTimePreference)
     ]
     /*if (search != "") {
         pathParams['q'] = "${search}"
@@ -343,8 +345,8 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
     logMsg.push("eventListParams: ${eventListParams}")
 
     def evs = []
-    if (state.events && state.events[watchCalendar]) {
-        evs = state.events[watchCalendar]
+    if (eventCache[watchCalendar] && eventCache[watchCalendar].events != null && eventCache[watchCalendar].events != [] && (now() - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[watchCalendar].lastUpdated).getTime() < (cacheMilliseconds))) {
+        evs = atomicState.events[watchCalendar].events
         logMsg.push("events pulled from cache")
         // Since state values are stored as strings, convert date values to date
         for (int i = 0; i < evs.size(); i++) {
@@ -391,7 +393,9 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
                     evs.push(eventDetails)
                 }
             }
-            state.events[watchCalendar] = evs
+            
+            eventCache[watchCalendar].lastUpdated = pathParams.timeMin
+            eventCache[watchCalendar].events = evs
         } catch (e) {
             log.error "error: ${path}, ${e}, ${e.getResponse().getData()}"
             if (refreshAuthToken()) {
@@ -401,27 +405,52 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
             }
         }
     }
-    logMsg.push("events: ${evs}")
     
-    if (!state.isScheduled) {
-        logMsg.push("scheduling cache in ${tempCacheMinutes}")
-        runIn(tempCacheMinutes, clearEventCache)
-        state.isScheduled = true
+    if (cacheEndTimePreference != endTimePreference) {
+        def tempEndDate = getEndDate(endTimePreference)
+        def tempEvs = []
+        for (int c = 0; c < evs.size(); c++) {
+            if (evs[c].eventStartTime <= Date.parse("yyyy-MM-dd'T'HH:mm:ssX", tempEndDate)) {
+                tempEvs.push(evs[c]) 
+            }
+        }
+        evs = tempEvs
     }
+    
+    atomicState.events = eventCache
+    logMsg.push("events: ${evs}")
     logDebug("${logMsg}")
     return evs
 }
 
 def clearEventCache(calendarName) {
+    def eventCache = atomicState.events
     logDebug "clearEventCache - calendarName: ${calendarName}"
     
-    if (calendarName != null && state.events[calendarName]) {  
-        //state.events[calendarName] = []
-        state.events.remove(calendarName);
-    } else {
-        state.events = [:]
+    def tempCacheMinutes = (cacheThreshold ?: 5) * 60 *1000 // By default, cache is 5 minutes
+    def timeNow = now()
+    def dateNow = new Date(timeNow)
+    def timeAgo = timeNow - tempCacheMinutes
+    
+    if (calendarName == null && eventCache == null) {
+        eventCache = [:]
+    } else if (calendarName == null && eventCache) {
+        def eventCacheCalendarList = eventCache.keySet()
+        for (int i = 0; i < eventCacheCalendarList.size(); i++) {
+            calendarName = eventCacheCalendarList[i]
+            eventCache[calendarName].events = []
+            timeAgo = timeAgo - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[calendarName].lastUpdated).getTime()
+            dateNow.setTime(timeNow - timeAgo)
+            eventCache[calendarName].lastUpdated = dateNow
+        }
+    } else if (eventCache[calendarName]) {  
+        eventCache[calendarName].events = []
+        timeAgo = timeAgo - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[calendarName].lastUpdated).getTime()
+        dateNow.setTime(timeNow - timeAgo)
+        eventCache[calendarName].lastUpdated = dateNow
     }
-    state.isScheduled = false
+    
+    atomicState.events = eventCache
 }
 
 def oauthInitUrl() {
@@ -535,10 +564,10 @@ def toQueryString(Map m) {
 }
 
 def getCurrentTime() {
-   //RFC 3339 format
-   //2015-06-20T11:39:45.0Z
-   def d = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ", location.timeZone)
-   return d
+    //RFC 3339 format
+    //2015-06-20T11:39:45.0Z
+    def d = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
+    return d
 }
 
 def getEndDate(endTimePreference) {
@@ -565,8 +594,75 @@ def getEndDate(endTimePreference) {
         endDate.setTime(tempEndTime)
     }
 
-    def d = endDate.format("yyyy-MM-dd'T'HH:mm:ss.SSSZ", location.timeZone)
+    def d = endDate.format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
     return d
+}
+
+def translateEndTimePref(endTimePref) {
+    def endTimePreference
+    switch (endTimePref) {        
+        case "End of Current Day":
+            endTimePreference = "endOfToday"
+            break
+        case "End of Next Day":
+            endTimePreference = "endOfTomorrow"
+            break
+        //case "Number of Hours from Current Time":
+            //endTimePreference = settings.endTimeHours
+            //break
+        default:
+            endTimePreference = endTimePref
+    }
+    
+    return endTimePreference
+}
+
+def setCacheDuration(type, tempEndTimePref=null) {
+    def eventCache = (atomicState.events == null) ? [:] : atomicState.events
+    def childApps = app.getAllChildApps()
+    int removeAppID
+    if (type == "remove") {
+        removeAppID = tempEndTimePref
+        tempEndTimePref = [:]
+    }
+    
+    tempEndTimePref = (tempEndTimePref == null) ? [:] : tempEndTimePref
+    def calendarCounter = [:]
+    for (int i = 0; i < childApps.size(); i++) {
+        def childApp = childApps[i]
+        if (type == "remove" && childApp.id == removeAppID) {
+            continue
+        }
+        
+        def watchCalendar = childApp.watchCalendars.toString()
+        if (calendarCounter[watchCalendar] == null) {
+            calendarCounter[watchCalendar] = 1
+        } else {
+            calendarCounter[watchCalendar] += 1
+        }
+        def endTimePref = translateEndTimePref(childApp.endTimePref)
+        endTimePref = (["endOfToday", "endOfTomorrow"].indexOf(endTimePref) > -1) ? endTimePref : childApp.endTimeHours
+        if (eventCache[watchCalendar] == null) {
+            eventCache[watchCalendar] = [:]
+        }
+        if (eventCache[watchCalendar] && eventCache[watchCalendar].events == null) {
+            eventCache[watchCalendar].events = []
+        }
+        if (eventCache[watchCalendar].endTimePref == null) {
+            eventCache[watchCalendar].endTimePref = endTimePref
+        } else {
+            if (tempEndTimePref[watchCalendar] == null) {
+                tempEndTimePref[watchCalendar] = endTimePref
+            }
+            if (type == "add" && calendarCounter[watchCalendar] == 1 && getEndDate(tempEndTimePref[watchCalendar]) > getEndDate(endTimePref)) {
+                eventCache[watchCalendar].endTimePref = tempEndTimePref[watchCalendar]
+            } else if (getEndDate(tempEndTimePref[watchCalendar]) <= getEndDate(endTimePref)) {
+                eventCache[watchCalendar].endTimePref = endTimePref
+            }
+        }
+    }
+    
+    atomicState.events = eventCache
 }
 
 def getAppClientId() { return gaClientID }
