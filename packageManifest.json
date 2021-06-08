@@ -1,12 +1,12 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "minimumHEVersion": "1.8.2",
   "dateReleased": "2021-06-01",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-	"releaseNotes": "Fixed bug with all day events and dates where calendar timezone doesn't match hub timezone. Added logic to adjust the eventEndTime if there are sequential events that match the search string. This prevents the switch from turning off and on between events.",
+	"releaseNotes": "PLEASE OPEN EACH SEARCH TRIGGER AND CLICK DONE. Fixed bug with Number of Hours from Current Time preference not showing. Refactored caching functionality to work with Search range preferences.  Caching may have been used before that didn't contain all events. Reworded instructions a bit to be clearer.",
   "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
