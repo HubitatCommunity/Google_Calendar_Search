@@ -642,7 +642,7 @@ def setCacheDuration(type, tempEndTimePref=null) {
         }
         def endTimePref = translateEndTimePref(childApp.endTimePref)
         endTimePref = (["endOfToday", "endOfTomorrow"].indexOf(endTimePref) > -1) ? endTimePref : childApp.endTimeHours
-        if (eventCache[watchCalendar] == null) {
+        if (eventCache[watchCalendar] == null || eventCache[watchCalendar] instanceof List) {
             eventCache[watchCalendar] = [:]
         }
         if (eventCache[watchCalendar] && eventCache[watchCalendar].events == null) {
