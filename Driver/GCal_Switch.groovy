@@ -1,4 +1,4 @@
-def driverVersion() { return "2.2.0" }
+def driverVersion() { return "2.2.1" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
