@@ -1,4 +1,4 @@
-def appVersion() { return "2.1.1" }
+def appVersion() { return "2.2.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -82,12 +82,12 @@ def selectCalendars() {
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
-                paragraph "${parent.getFormat("text", "<u>End Time Preference</u>: By default, events from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
-                input name: "endTimePref", type: "enum", title: "End Time Preference", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
-                if ( settings.endTimePref == "Number of Hours from Now" ) {
-                    input name: "endTimeHours", type: "number", title: "Number of hours from now", required: true
+                paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, events from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
+                input name: "endTimePref", type: "enum", title: "Search Range", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
+                if ( settings.endTimePref == "Number of Hours from Current Time" ) {
+                    input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
-                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: If an event is found that is in the future, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting.  This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.")}"
+                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependant on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
                 input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
                 paragraph "${parent.getFormat("line")}"
@@ -124,12 +124,16 @@ def selectCalendars() {
 def installed() {
 	state.isPaused = false
 	initialize()
+    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : parent.translateEndTimePref(settings.endTimePref)
+    def tempEndTimePref = [:]
+    tempEndTimePref[settings.watchCalendars] = endTimePreference
+    parent.setCacheDuration("add", tempEndTimePref)
 }
 
 def updated() {
 	unschedule()
-    
 	initialize()
+    parent.setCacheDuration("update")
 }
 
 def initialize() {
@@ -177,21 +181,7 @@ def getDefaultSwitchValue() {
 def getNextEvents() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
-    def endTimePreference
-    switch (settings.endTimePref) {        
-        case "End of Current Day":
-            endTimePreference = "endOfToday"
-            break
-        case "End of Next Day":
-            endTimePreference = "endOfTomorrow"
-            break
-        case "Number of Hours from Current Time":
-            endTimePreference = settings.endTimeHours
-            break
-        default:
-            endTimePreference = "endOfToday"
-    }
-
+    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
     def items = parent.getNextEvents(settings.watchCalendars, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     def item = []
@@ -291,6 +281,7 @@ private uninstalled() {
     logDebug "uninstalled - Delete all child devices"
     
 	deleteAllChildren()
+    parent.setCacheDuration("remove", app.id)
 }
 
 private deleteAllChildren() {    
