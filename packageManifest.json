@@ -1,9 +1,9 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "minimumHEVersion": "1.8.2",
-  "dateReleased": "2021-06-01",
+  "dateReleased": "2021-06-08",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
 	"releaseNotes": "PLEASE OPEN ONE SEARCH TRIGGER AND CLICK DONE. Fixed bug with Number of Hours from Current Time preference not showing. Refactored caching functionality to work with Search range preferences.  Caching may have been used before that didn't contain all events. Reworded instructions a bit to be clearer.",
