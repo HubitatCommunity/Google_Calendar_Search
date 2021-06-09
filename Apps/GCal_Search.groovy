@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.0" }
+def appVersion() { return "2.2.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -264,8 +264,6 @@ def initialize() {
     }
     state.setup = true
 }
-
-
 
 def getCalendarList() {
     def logMsg = []
@@ -621,26 +619,37 @@ def setCacheDuration(type, tempEndTimePref=null) {
     def eventCache = (atomicState.events == null) ? [:] : atomicState.events
     def childApps = app.getAllChildApps()
     int removeAppID
+    def watchCalendar
+    def endTimePref
     if (type == "remove") {
         removeAppID = tempEndTimePref
         tempEndTimePref = [:]
+    } else if (childApps.size() == 0 && type == "add") {
+        def tempEndTimePrefList = tempEndTimePref.keySet()
+        for (int i = 0; i < tempEndTimePrefList.size(); i++) {
+            watchCalendar = tempEndTimePrefList[i]
+            endTimePref = translateEndTimePref(tempEndTimePref[watchCalendar])
+            eventCache[watchCalendar] = [:]
+            eventCache[watchCalendar].events = []
+            eventCache[watchCalendar].endTimePref = endTimePref
+        }
     }
     
     tempEndTimePref = (tempEndTimePref == null) ? [:] : tempEndTimePref
     def calendarCounter = [:]
-    for (int i = 0; i < childApps.size(); i++) {
-        def childApp = childApps[i]
+    for (int c = 0; c < childApps.size(); c++) {
+        def childApp = childApps[c]
         if (type == "remove" && childApp.id == removeAppID) {
             continue
         }
         
-        def watchCalendar = childApp.watchCalendars.toString()
+        watchCalendar = childApp.watchCalendars.toString()
         if (calendarCounter[watchCalendar] == null) {
             calendarCounter[watchCalendar] = 1
         } else {
             calendarCounter[watchCalendar] += 1
         }
-        def endTimePref = translateEndTimePref(childApp.endTimePref)
+        endTimePref = translateEndTimePref(childApp.endTimePref)
         endTimePref = (["endOfToday", "endOfTomorrow"].indexOf(endTimePref) > -1) ? endTimePref : childApp.endTimeHours
         if (eventCache[watchCalendar] == null || eventCache[watchCalendar] instanceof List) {
             eventCache[watchCalendar] = [:]
