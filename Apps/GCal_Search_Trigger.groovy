@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.1" }
+def appVersion() { return "2.2.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -123,17 +123,17 @@ def selectCalendars() {
 
 def installed() {
 	state.isPaused = false
-	initialize()
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : parent.translateEndTimePref(settings.endTimePref)
     def tempEndTimePref = [:]
     tempEndTimePref[settings.watchCalendars] = endTimePreference
     parent.setCacheDuration("add", tempEndTimePref)
+    initialize()
 }
 
 def updated() {
 	unschedule()
-	initialize()
     parent.setCacheDuration("update")
+    initialize()
 }
 
 def initialize() {
