@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.2" }
+def appVersion() { return "2.2.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -87,9 +87,12 @@ def selectCalendars() {
                 if ( settings.endTimePref == "Number of Hours from Current Time" ) {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
-                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependant on When to Run (how often the trigger is executed) and the Search Range of events.")}"
-                input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
-                input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
+                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
+                input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
+                if ( settings.setOffset == true || settings.offsetStart || settings.offsetEnd ) {
+                    input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
+                    input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
+                }
                 paragraph "${parent.getFormat("line")}"
             }
         }
@@ -138,7 +141,10 @@ def updated() {
 
 def initialize() {
     state.installed = true
-   	
+    if ((settings.setOffset == null || settings.setOffset == false) && (settings.offsetStart != null || settings.offsetEnd != null)) {
+        app.updateSetting("setOffset", [value:"true", type:"bool"])
+    }
+    
     // Sets Label of Trigger
     updateAppLabel()
     
@@ -239,7 +245,7 @@ def getNextEvents() {
 
             if (foundMatch) {
                 item.scheduleStartTime = new Date(item.eventStartTime.getTime())
-                if (settings.offsetStart != null && settings.offsetStart != "") {
+                if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
                     def origStartTime = new Date(item.eventStartTime.getTime())
                     int offsetStart = settings.offsetStart.toInteger()
                     def tempStartTime = item.scheduleStartTime.getTime()
@@ -249,7 +255,7 @@ def getNextEvents() {
                 }
 
                 item.scheduleEndTime = new Date(item.eventEndTime.getTime())
-                if (settings.offsetEnd != null && settings.offsetEnd != "") {
+                if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
                     def origEndTime = new Date(item.eventEndTime.getTime())
                     int offsetEnd = settings.offsetEnd.toInteger()
                     def tempEndTime = item.scheduleEndTime.getTime()
