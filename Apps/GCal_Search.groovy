@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.2" }
+def appVersion() { return "2.2.3" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -328,6 +328,7 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
         timeMin: getCurrentTime(),
         timeMax: getEndDate(cacheEndTimePreference)
     ]
+    // Removed text search from Google API Query since HE is doing the matching.  Leaving here in case it is needed in the future
     /*if (search != "") {
         pathParams['q'] = "${search}"
     }*/
@@ -425,10 +426,9 @@ def clearEventCache(calendarName) {
     def eventCache = atomicState.events
     logDebug "clearEventCache - calendarName: ${calendarName}"
     
-    def tempCacheMinutes = (cacheThreshold ?: 5) * 60 *1000 // By default, cache is 5 minutes
-    def timeNow = now()
-    def dateNow = new Date(timeNow)
-    def timeAgo = timeNow - tempCacheMinutes
+    // Set last updated to a long time ago so getNextEvents queries for new events regardless of cache
+    def longTimeAgo = new Date()
+    longTimeAgo.set(year: 2000, month: Calendar.JANUARY, dayOfMonth: 1, hourOfDay: 0, minute: 0, second: 0)
     
     if (calendarName == null && eventCache == null) {
         eventCache = [:]
@@ -437,15 +437,11 @@ def clearEventCache(calendarName) {
         for (int i = 0; i < eventCacheCalendarList.size(); i++) {
             calendarName = eventCacheCalendarList[i]
             eventCache[calendarName].events = []
-            timeAgo = timeAgo - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[calendarName].lastUpdated).getTime()
-            dateNow.setTime(timeNow - timeAgo)
-            eventCache[calendarName].lastUpdated = dateNow
+            eventCache[calendarName].lastUpdated = longTimeAgo
         }
     } else if (eventCache[calendarName]) {  
         eventCache[calendarName].events = []
-        timeAgo = timeAgo - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[calendarName].lastUpdated).getTime()
-        dateNow.setTime(timeNow - timeAgo)
-        eventCache[calendarName].lastUpdated = dateNow
+        eventCache[calendarName].lastUpdated = longTimeAgo
     }
     
     atomicState.events = eventCache
@@ -582,7 +578,7 @@ def getEndDate(endTimePreference) {
         if (endTimePreference == "endOfTomorrow") {
             numberOfHours = 24
         }
-    } else {
+    } else if (endTimePreference instanceof Number) {
         numberOfHours = endTimePreference
     }
     
@@ -618,55 +614,61 @@ def translateEndTimePref(endTimePref) {
 def setCacheDuration(type, tempEndTimePref=null) {
     def eventCache = (atomicState.events == null) ? [:] : atomicState.events
     def childApps = app.getAllChildApps()
-    int removeAppID
     def watchCalendar
     def endTimePref
-    if (type == "remove") {
-        removeAppID = tempEndTimePref
-        tempEndTimePref = [:]
-    } else if (childApps.size() == 0 && type == "add") {
-        def tempEndTimePrefList = tempEndTimePref.keySet()
-        for (int i = 0; i < tempEndTimePrefList.size(); i++) {
-            watchCalendar = tempEndTimePrefList[i]
-            endTimePref = translateEndTimePref(tempEndTimePref[watchCalendar])
-            eventCache[watchCalendar] = [:]
-            eventCache[watchCalendar].events = []
-            eventCache[watchCalendar].endTimePref = endTimePref
-        }
-    }
-    
-    tempEndTimePref = (tempEndTimePref == null) ? [:] : tempEndTimePref
-    def calendarCounter = [:]
-    for (int c = 0; c < childApps.size(); c++) {
-        def childApp = childApps[c]
-        if (type == "remove" && childApp.id == removeAppID) {
-            continue
-        }
-        
-        watchCalendar = childApp.watchCalendars.toString()
-        if (calendarCounter[watchCalendar] == null) {
-            calendarCounter[watchCalendar] = 1
-        } else {
-            calendarCounter[watchCalendar] += 1
-        }
-        endTimePref = translateEndTimePref(childApp.endTimePref)
-        endTimePref = (["endOfToday", "endOfTomorrow"].indexOf(endTimePref) > -1) ? endTimePref : childApp.endTimeHours
-        if (eventCache[watchCalendar] == null || eventCache[watchCalendar] instanceof List) {
-            eventCache[watchCalendar] = [:]
-        }
-        if (eventCache[watchCalendar] && eventCache[watchCalendar].events == null) {
-            eventCache[watchCalendar].events = []
-        }
-        if (eventCache[watchCalendar].endTimePref == null) {
-            eventCache[watchCalendar].endTimePref = endTimePref
-        } else {
-            if (tempEndTimePref[watchCalendar] == null) {
-                tempEndTimePref[watchCalendar] = endTimePref
-            }
-            if (type == "add" && calendarCounter[watchCalendar] == 1 && getEndDate(tempEndTimePref[watchCalendar]) > getEndDate(endTimePref)) {
-                eventCache[watchCalendar].endTimePref = tempEndTimePref[watchCalendar]
-            } else if (getEndDate(tempEndTimePref[watchCalendar]) <= getEndDate(endTimePref)) {
+    if (childApps.size() == 0) {
+        if (type == "add") {
+            def tempEndTimePrefList = tempEndTimePref.keySet()
+            for (int i = 0; i < tempEndTimePrefList.size(); i++) {
+                watchCalendar = tempEndTimePrefList[i]
+                endTimePref = translateEndTimePref(tempEndTimePref[watchCalendar])
+                eventCache[watchCalendar] = [:]
+                eventCache[watchCalendar].events = []
                 eventCache[watchCalendar].endTimePref = endTimePref
+            }
+        } else {
+            // Do nothing for remove and zero child triggers left
+        }
+    } else {
+        int removeAppID
+        if (type == "remove") {
+            removeAppID = tempEndTimePref
+            tempEndTimePref = [:]
+        }
+
+        tempEndTimePref = (tempEndTimePref == null) ? [:] : tempEndTimePref
+        def calendarCounter = [:]
+        for (int c = 0; c < childApps.size(); c++) {
+            def childApp = childApps[c]
+            if (type == "remove" && childApp.id == removeAppID) {
+                continue // Skip
+            }
+
+            watchCalendar = childApp.watchCalendars.toString()
+            if (calendarCounter[watchCalendar] == null) {
+                calendarCounter[watchCalendar] = 1
+            } else {
+                calendarCounter[watchCalendar] += 1
+            }
+            endTimePref = translateEndTimePref(childApp.endTimePref)
+            endTimePref = (["endOfToday", "endOfTomorrow"].indexOf(endTimePref) > -1) ? endTimePref : childApp.endTimeHours
+            if (eventCache[watchCalendar] == null || eventCache[watchCalendar] instanceof List) {
+                eventCache[watchCalendar] = [:]
+            }
+            if (eventCache[watchCalendar] && eventCache[watchCalendar].events == null) {
+                eventCache[watchCalendar].events = []
+            }
+            if (eventCache[watchCalendar].endTimePref == null) {
+                eventCache[watchCalendar].endTimePref = endTimePref
+            } else {
+                if (tempEndTimePref[watchCalendar] == null) {
+                    tempEndTimePref[watchCalendar] = endTimePref
+                }
+                if (type == "add" && calendarCounter[watchCalendar] == 1 && getEndDate(tempEndTimePref[watchCalendar]) > getEndDate(endTimePref)) {
+                    eventCache[watchCalendar].endTimePref = tempEndTimePref[watchCalendar]
+                } else if (getEndDate(tempEndTimePref[watchCalendar]) <= getEndDate(endTimePref)) {
+                    eventCache[watchCalendar].endTimePref = endTimePref
+                }
             }
         }
     }
