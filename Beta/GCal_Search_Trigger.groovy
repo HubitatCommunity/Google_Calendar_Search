@@ -54,9 +54,15 @@ def selectCalendars() {
         section("${parent.getFormat("box", "Search Preferences")}") {
             //we can't do multiple calendars because the api doesn't support it and it could potentially cause a lot of traffic to happen
             input name: "watchCalendars", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:calendars, submitOnChange: true
-            paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li><li>To exclude calendar events with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
+            input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
+            if ( settings.GoogleMatching == false || settings.GoogleMatching == null) {
+                paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li><li>To exclude calendar events with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
+                input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+            } else {
+                paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
+            }
             input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
-            input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+            
             input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
             paragraph "${parent.getFormat("line")}"
         }
@@ -87,9 +93,11 @@ def selectCalendars() {
                 if ( settings.endTimePref == "Number of Hours from Current Time" ) {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
+                paragraph "${parent.getFormat("text", "<u>Sequential Event Preferences</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
+                input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                 paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
-                if ( settings.setOffset == true || settings.offsetStart || settings.offsetEnd ) {
+                if ( settings.setOffset == true ) {
                     input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
                     input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
                 }
@@ -129,7 +137,9 @@ def installed() {
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : parent.translateEndTimePref(settings.endTimePref)
     def tempEndTimePref = [:]
     tempEndTimePref[settings.watchCalendars] = endTimePreference
-    parent.setCacheDuration("add", tempEndTimePref)
+    if (settings.GoogleMatching == false) {
+        parent.setCacheDuration("add", tempEndTimePref)
+    }
     initialize()
 }
 
@@ -188,7 +198,7 @@ def getNextEvents() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextEvents(settings.watchCalendars, search, endTimePreference)
+    def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     def item = []
     
@@ -202,6 +212,8 @@ def getNextEvents() {
         for (int s = 0; s < searchTerms.size(); s++) {
             def searchTerm = searchTerms[s].trim()
             logMsg.push("searchTerm: '${searchTerm}'")
+            def sequentialEventOffset = false
+            
             for (int i = 0; i < items.size(); i++) {
                 def itemMatch = false
                 def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
@@ -256,8 +268,15 @@ def getNextEvents() {
                         item = items[i]
                     } else if (i < items.size()) {
                         def newItem = items[i]
-                        if (item.eventEndTime >= newItem.eventStartTime) {
-                            item.eventEndTime = newItem.eventEndTime
+                        if (settings.sequentialEvent) {
+                            if (item.eventEndTime >= newItem.eventStartTime) {
+                                item.eventEndTime = newItem.eventEndTime
+                            }
+                        } else {
+                            if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
+                                sequentialEventOffset = true
+                            }
+                            break
                         }
                     } else {
                         break
@@ -277,9 +296,14 @@ def getNextEvents() {
                 }
 
                 item.scheduleEndTime = new Date(item.eventEndTime.getTime())
-                if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+                if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
                     def origEndTime = new Date(item.eventEndTime.getTime())
-                    int offsetEnd = settings.offsetEnd.toInteger()
+                    int offsetEnd
+                    if (sequentialEventOffset && settings.offsetEnd == null) {
+                        offsetEnd = -1
+                    } else {
+                        offsetEnd = settings.offsetEnd.toInteger()
+                    }
                     def tempEndTime = item.scheduleEndTime.getTime()
                     tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
                     item.scheduleEndTime.setTime(tempEndTime)
