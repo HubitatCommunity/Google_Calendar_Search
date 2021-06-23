@@ -1,4 +1,4 @@
-def appVersion() { return "2.3.0" }
+def appVersion() { return "2.3.0.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -111,6 +111,8 @@ def selectCalendars() {
                 input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                 paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle from this value.")}"
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
+                paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
+                input "additionalSwitches", "capability.switch", title: "Toggle/Sync Additional Switches", multiple: true, required: false
                 paragraph "${parent.getFormat("line")}"
             }
         }
@@ -327,6 +329,18 @@ def poll() {
     def childDevice = getChildDevice(state.deviceID)
     logDebug "poll - childDevice: ${childDevice}"
     childDevice.poll()
+}
+
+def syncChildSwitches(value){
+    if (additionalSwitches == null) {
+        return
+    }
+    
+    if (value == "on") {
+        additionalSwitches.on()
+    } else {
+        additionalSwitches.off()
+    }
 }
 
 private uninstalled() {
