@@ -1,4 +1,4 @@
-def appVersion() { return "2.3.0.3" }
+def appVersion() { return "BETA 2.3.0.4" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -315,7 +315,7 @@ def getCalendarList() {
 
 def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference) {
     def eventCache = atomicState.events
-    def cacheEndTimePreference = translateEndTimePref(eventCache[watchCalendar].endTimePref ?: endTimePreference)
+    def cacheEndTimePreference = translateEndTimePref(GoogleMatching == false && eventCache[watchCalendar].endTimePref ?: endTimePreference)
     endTimePreference = translateEndTimePref(endTimePreference)
     def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}, cacheEndTimePreference: ${cacheEndTimePreference}"]
     isTokenExpired("getNextEvents")
