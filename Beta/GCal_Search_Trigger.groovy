@@ -1,4 +1,4 @@
-def appVersion() { return "2.3.0.3" }
+def appVersion() { return "BETA 2.3.0.4" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -62,7 +62,7 @@ def selectCalendars() {
                 paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
             }
             input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
-            
+            input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
             input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
             paragraph "${parent.getFormat("line")}"
         }
@@ -112,7 +112,11 @@ def selectCalendars() {
                 paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle from this value.")}"
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
                 paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
-                input "additionalSwitches", "capability.switch", title: "Toggle/Sync Additional Switches", multiple: true, required: false
+                input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
+                if ( settings.controlOtherSwitches == true ) {
+                    input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
+                    input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
+                }
                 paragraph "${parent.getFormat("line")}"
             }
         }
@@ -202,116 +206,136 @@ def getNextEvents() {
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
     def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
-    def item = []
     
-    if (items && items.size() > 0) {
-        def searchTerms = search.toString()
-        if (caseSensitive == false) {
-            searchTerms = searchTerms.toLowerCase()
+    if (items && items.size() > 0 && includeAllDay == false) {
+        def tempItems = []
+        for (int a = 0; a < items.size(); a++) {
+            def tempItem = items[a]
+            if (tempItem.eventAllDay == false) {
+                tempItems.push(tempItem)
+            }
         }
-        searchTerms = searchTerms.split(",")
-        def foundMatch = false
-        for (int s = 0; s < searchTerms.size(); s++) {
-            def searchTerm = searchTerms[s].trim()
-            logMsg.push("searchTerm: '${searchTerm}'")
-            def sequentialEventOffset = false
-            
-            for (int i = 0; i < items.size(); i++) {
-                def itemMatch = false
-                def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
-                if (caseSensitive == false) {
-                    eventTitle = eventTitle.toLowerCase()
-                }
-                logMsg.push("eventTitle: ${eventTitle}")
+        items = tempItems
+    } 
+    
+    def item = []
+    def foundMatch = false
+    if (items && items.size() > 0) {
+        if (settings.GoogleMatching == true) {
+            // Default to the first event found by Google API
+            item = items[0]
+            foundMatch = true
+        } else {
+            def searchTerms = search.toString()
+            if (caseSensitive == false) {
+                searchTerms = searchTerms.toLowerCase()
+            }
+            searchTerms = searchTerms.split(",")
+            for (int s = 0; s < searchTerms.size(); s++) {
+                def searchTerm = searchTerms[s].trim()
+                logMsg.push("searchTerm: '${searchTerm}'")
+                def sequentialEventOffset = false
 
-                def ignoreMatch = false
-                if (searchTerm.indexOf("-") > -1) {
-                    def pattern = ~/-[\w]+/
-                    def ignoreWords = (searchTerm =~ pattern).findAll()
-                    for (int iG = 0; iG < ignoreWords.size(); iG++) {
-                        def ignoreWord = ignoreWords[iG].substring(1).trim()
-                        if (eventTitle.indexOf(ignoreWord) > -1) {
-                            logMsg.push("No Match: ignore word '${ignoreWord}' found")
-                            ignoreMatch = true
-                            break
-                        } else {
-                            //Remove word from searchTerm
-                            searchTerm = searchTerm.replace(ignoreWords[iG], "").trim()
+                for (int i = 0; i < items.size(); i++) {
+                    def itemMatch = false
+                    def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
+                    if (caseSensitive == false) {
+                        eventTitle = eventTitle.toLowerCase()
+                    }
+                    logMsg.push("eventTitle: ${eventTitle}")
+
+                    def ignoreMatch = false
+                    if (searchTerm.indexOf("-") > -1) {
+                        def pattern = ~/-[\w]+/
+                        def ignoreWords = (searchTerm =~ pattern).findAll()
+                        for (int iG = 0; iG < ignoreWords.size(); iG++) {
+                            def ignoreWord = ignoreWords[iG].substring(1).trim()
+                            if (eventTitle.indexOf(ignoreWord) > -1) {
+                                logMsg.push("No Match: ignore word '${ignoreWord}' found")
+                                ignoreMatch = true
+                                break
+                            } else {
+                                //Remove word from searchTerm
+                                searchTerm = searchTerm.replace(ignoreWords[iG], "").trim()
+                            }
+                        }
+                        logMsg.push("searchTerm trimmed to'${searchTerm}'")
+                    }
+
+                    if (ignoreMatch == false) {
+                        if (searchTerm == "*") {
+                            itemMatch = true
+                        } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
+                            itemMatch = true
+                        } else if (searchTerm.indexOf("*") > -1) {
+                            def searchList = searchTerm.toString().split("\\*")
+                            for (int sL = 0; sL < searchList.size(); sL++) {
+                                def searchItem = searchList[sL].trim()
+                                if (eventTitle.indexOf(searchItem) > -1) {
+                                    itemMatch = true
+                                } else {
+                                    itemMatch = false
+                                    break
+                                }
+                            }
+                        } else if (eventTitle.startsWith(searchTerm)) {
+                            itemMatch = true
                         }
                     }
-                    logMsg.push("searchTerm trimmed to'${searchTerm}'")
-                }
 
-                if (ignoreMatch == false) {
-                    if (searchTerm == "*") {
-                        itemMatch = true
-                    } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
-                        itemMatch = true
-                    } else if (searchTerm.indexOf("*") > -1) {
-                        def searchList = searchTerm.toString().split("\\*")
-                        for (int sL = 0; sL < searchList.size(); sL++) {
-                            def searchItem = searchList[sL].trim()
-                            if (eventTitle.indexOf(searchItem) > -1) {
-                                itemMatch = true
+                    logMsg.push("itemMatch: ${itemMatch}")
+                    if (itemMatch) {
+                        foundMatch = true
+                        if (item == []) {
+                            item = items[i]
+                        } else if (i < items.size()) {
+                            def newItem = items[i]
+                            if (settings.sequentialEvent) {
+                                if (item.eventEndTime >= newItem.eventStartTime) {
+                                    item.eventEndTime = newItem.eventEndTime
+                                }
                             } else {
-                                itemMatch = false
+                                if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
+                                    sequentialEventOffset = true
+                                }
                                 break
                             }
-                        }
-                    } else if (eventTitle.startsWith(searchTerm)) {
-                        itemMatch = true
-                    }
-                }
-                
-                logMsg.push("itemMatch: ${itemMatch}")
-                if (itemMatch) {
-                    foundMatch = true
-                    if (item == []) {
-                        item = items[i]
-                    } else if (i < items.size()) {
-                        def newItem = items[i]
-                        if (settings.sequentialEvent) {
-                            if (item.eventEndTime >= newItem.eventStartTime) {
-                                item.eventEndTime = newItem.eventEndTime
-                            }
                         } else {
-                            if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
-                                sequentialEventOffset = true
-                            }
                             break
                         }
-                    } else {
-                        break
                     }
+                }
+
+                if (foundMatch) {
+                    break
                 }
             }
+        }
+        
+        if (foundMatch) {
+            item.scheduleStartTime = new Date(item.eventStartTime.getTime())
+            if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
+                def origStartTime = new Date(item.eventStartTime.getTime())
+                int offsetStart = settings.offsetStart.toInteger()
+                def tempStartTime = item.scheduleStartTime.getTime()
+                tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
+                item.scheduleStartTime.setTime(tempStartTime)
+                logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
+            }
 
-            if (foundMatch) {
-                item.scheduleStartTime = new Date(item.eventStartTime.getTime())
-                if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
-                    def origStartTime = new Date(item.eventStartTime.getTime())
-                    int offsetStart = settings.offsetStart.toInteger()
-                    def tempStartTime = item.scheduleStartTime.getTime()
-                    tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
-                    item.scheduleStartTime.setTime(tempStartTime)
-                    logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
+            item.scheduleEndTime = new Date(item.eventEndTime.getTime())
+            if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
+                def origEndTime = new Date(item.eventEndTime.getTime())
+                int offsetEnd
+                if (sequentialEventOffset && settings.offsetEnd == null) {
+                    offsetEnd = -1
+                } else {
+                    offsetEnd = settings.offsetEnd.toInteger()
                 }
-
-                item.scheduleEndTime = new Date(item.eventEndTime.getTime())
-                if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
-                    def origEndTime = new Date(item.eventEndTime.getTime())
-                    int offsetEnd
-                    if (sequentialEventOffset && settings.offsetEnd == null) {
-                        offsetEnd = -1
-                    } else {
-                        offsetEnd = settings.offsetEnd.toInteger()
-                    }
-                    def tempEndTime = item.scheduleEndTime.getTime()
-                    tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
-                    item.scheduleEndTime.setTime(tempEndTime)
-                    logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
-                }
-                break
+                def tempEndTime = item.scheduleEndTime.getTime()
+                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                item.scheduleEndTime.setTime(tempEndTime)
+                logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
             }
         }
     }
@@ -332,14 +356,12 @@ def poll() {
 }
 
 def syncChildSwitches(value){
-    if (additionalSwitches == null) {
-        return
-    }
-    
     if (value == "on") {
-        additionalSwitches.on()
+        syncSwitches?.on()
+        reverseSwitches?.off()
     } else {
-        additionalSwitches.off()
+        syncSwitches?.off()
+        reverseSwitches?.on()
     }
 }
 
