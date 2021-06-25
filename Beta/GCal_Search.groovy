@@ -1,4 +1,4 @@
-def appVersion() { return "BETA 2.3.0.5" }
+def appVersion() { return "BETA 2.3.0.6" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -96,7 +96,7 @@ def authenticationPage() {
                 if (atomicState.userCode || !atomicState.authToken) {
                     paragraph "${getFormat("text", "At any time click the button below to restart the authentication process.")}"
                     href "authenticationReset", title: "Reset Google Authentication", description: "Tap to reset Google API Authentication and start over"
-                    paragraph "${getFormat("text", "Select  '<'  at upper left corner to exit.")}"
+                    paragraph "${getFormat("text", "Use the browser back button or click Next to exit.")}"
                 }
             }
         }
@@ -225,7 +225,7 @@ def utilitiesPage() {
         section() {
             paragraph "${getFormat("text", "<b>All commands take effect immediately!</b>")}"
             input "clearCache", "bool", title: "Clear event cache", required: false, defaultValue: false, submitOnChange: true
-            input "resyncNow", "bool", title: "Sync all calendar searches now", required: false, defaultValue: false, submitOnChange: true
+            input "resyncNow", "bool", title: "Sync all calendar searches now.  FYI You can sync individual calendar searches by clicking the Poll button within the child switch.", required: false, defaultValue: false, submitOnChange: true
 		}
     }
 }
