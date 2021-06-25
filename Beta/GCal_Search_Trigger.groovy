@@ -1,4 +1,4 @@
-def appVersion() { return "BETA 2.3.0.5" }
+def appVersion() { return "BETA 2.3.0.6" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -207,20 +207,52 @@ def getNextEvents() {
     def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
-    if (items && items.size() > 0 && includeAllDay == false) {
-        def tempItems = []
-        for (int a = 0; a < items.size(); a++) {
-            def tempItem = items[a]
-            if (tempItem.eventAllDay == false) {
-                tempItems.push(tempItem)
-            }
-        }
-        items = tempItems
-    } 
-    
     def item = []
     def foundMatch = false
     if (items && items.size() > 0) {
+        // Filter out all day events
+        def tempItems,tempItem
+        if (settings.includeAllDay == false) {
+            tempItems = []
+            def allDayFilter = []
+            for (int a = 0; a < items.size(); a++) {
+                tempItem = items[a]
+                if (tempItem.eventAllDay == false) {
+                    tempItems.push(tempItem)
+                } else {
+                    allDayFilter.push("${tempItem.eventTitle}")
+                }
+            }
+            items = tempItems
+            if (allDayFilter.size() > 0) {
+                logMsg.push("Filtered these All Day Events: ${allDayFilter}")
+            }
+        }
+        
+        // Filter out events if Event Offset End is before current time
+        def offsetEnd,tempEndTime
+        if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+            tempItems = []
+            def offsetEndFilter = []
+            for (int o = 0; o < items.size(); o++) {
+                tempItem = items[o]
+                def currentTime = new Date()
+                offsetEnd = settings.offsetEnd.toInteger()
+                tempEndTime = tempItem.eventEndTime.getTime()
+                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                tempEndTime = new Date(tempEndTime)
+                if (tempEndTime > currentTime) {
+                    tempItems.push(tempItem)
+                } else {
+                    offsetEndFilter.push("${tempItem.eventTitle}")
+                }  
+            }
+            items = tempItems
+            if (offsetEndFilter.size() > 0) {
+                logMsg.push("Filtered these events because of end offset: ${offsetEndFilter}")
+            }
+        }
+        
         if (settings.GoogleMatching == true) {
             // Default to the first event found by Google API
             item = items[0]
@@ -326,13 +358,12 @@ def getNextEvents() {
             item.scheduleEndTime = new Date(item.eventEndTime.getTime())
             if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
                 def origEndTime = new Date(item.eventEndTime.getTime())
-                int offsetEnd
                 if (sequentialEventOffset && settings.offsetEnd == null) {
                     offsetEnd = -1
                 } else {
                     offsetEnd = settings.offsetEnd.toInteger()
                 }
-                def tempEndTime = item.scheduleEndTime.getTime()
+                tempEndTime = item.scheduleEndTime.getTime()
                 tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
                 item.scheduleEndTime.setTime(tempEndTime)
                 logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
