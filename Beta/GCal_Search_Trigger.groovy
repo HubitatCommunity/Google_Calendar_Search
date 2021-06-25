@@ -1,4 +1,4 @@
-def appVersion() { return "BETA 2.3.0.4" }
+def appVersion() { return "BETA 2.3.0.5" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
