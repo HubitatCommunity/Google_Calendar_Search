@@ -1,4 +1,4 @@
-def driverVersion() { return "2.2.3" }
+def driverVersion() { return "2.3.1" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -70,6 +70,7 @@ def poll() {
     logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, currentValue: ${currentValue} AFTER ")
     
     def result = []
+    def syncValue
     result << sendEvent(name: "lastUpdated", value: nowDateTime, displayed: false)
     def item = parent.getNextEvents()
     if (item && item.eventTitle) {
@@ -89,6 +90,7 @@ def poll() {
             if (currentValue != defaultValue) {
                 logMsg.push("Turning ${defaultValue} switch")
                 result << sendEvent(name: "switch", value: defaultValue)
+                syncValue = defaultValue
             }
         } else {
             scheduleSwitch(defaultValue, item.scheduleEndTime)
@@ -96,6 +98,7 @@ def poll() {
             if (currentValue != toggleValue) {
                 logMsg.push("Turning ${toggleValue} switch")
                 result << sendEvent(name: "switch", value: toggleValue)
+                syncValue = toggleValue
             }
         }
     } else {
@@ -106,18 +109,22 @@ def poll() {
         result << sendEvent(name: "eventStartTime", value: " ")
         result << sendEvent(name: "eventEndTime", value: " ")
         result << sendEvent(name: "switch", value: defaultValue)
+        syncValue = defaultValue
     }
     
+    syncChildSwitches(syncValue)
     logDebug("${logMsg}")
     return result
 }
 
 def on() {
     sendEvent(name: "switch", value: "on")
+    syncChildSwitches("on")
 }
 
 def off() {
     sendEvent(name: "switch", value: "off")
+    syncChildSwitches("off")
 }
 
 def determineSwitch(hasCurrentEvent) {
@@ -165,6 +172,10 @@ def scheduleOff() {
 
 def clearEventCache() {
     parent.clearEventCache()
+}
+
+def syncChildSwitches(value) {
+    parent.syncChildSwitches(value)
 }
 
 private logDebug(msg) {
