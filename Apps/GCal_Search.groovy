@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.3" }
+def appVersion() { return "2.3.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -96,7 +96,7 @@ def authenticationPage() {
                 if (atomicState.userCode || !atomicState.authToken) {
                     paragraph "${getFormat("text", "At any time click the button below to restart the authentication process.")}"
                     href "authenticationReset", title: "Reset Google Authentication", description: "Tap to reset Google API Authentication and start over"
-                    paragraph "${getFormat("text", "Select  '<'  at upper left corner to exit.")}"
+                    paragraph "${getFormat("text", "Use the browser back button or click Next to exit.")}"
                 }
             }
         }
@@ -225,7 +225,7 @@ def utilitiesPage() {
         section() {
             paragraph "${getFormat("text", "<b>All commands take effect immediately!</b>")}"
             input "clearCache", "bool", title: "Clear event cache", required: false, defaultValue: false, submitOnChange: true
-            input "resyncNow", "bool", title: "Sync all calendar searches now", required: false, defaultValue: false, submitOnChange: true
+            input "resyncNow", "bool", title: "Sync all calendar searches now.  FYI You can sync individual calendar searches by clicking the Poll button within the child switch.", required: false, defaultValue: false, submitOnChange: true
 		}
     }
 }
@@ -313,9 +313,9 @@ def getCalendarList() {
     return stats
 }
 
-def getNextEvents(watchCalendar, search, endTimePreference) {
+def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference) {
     def eventCache = atomicState.events
-    def cacheEndTimePreference = translateEndTimePref(eventCache[watchCalendar].endTimePref ?: endTimePreference)
+    def cacheEndTimePreference = translateEndTimePref(GoogleMatching == false && eventCache[watchCalendar].endTimePref ? eventCache[watchCalendar].endTimePref : endTimePreference)
     endTimePreference = translateEndTimePref(endTimePreference)
     def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}, cacheEndTimePreference: ${cacheEndTimePreference}"]
     isTokenExpired("getNextEvents")
@@ -328,10 +328,11 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
         timeMin: getCurrentTime(),
         timeMax: getEndDate(cacheEndTimePreference)
     ]
-    // Removed text search from Google API Query since HE is doing the matching.  Leaving here in case it is needed in the future
-    /*if (search != "") {
+    
+    if (GoogleMatching == true && search != "") {
         pathParams['q'] = "${search}"
-    }*/
+    }
+    
     logMsg.push("pathParams: ${pathParams}")
 
     def path = "/calendar/v3/calendars/${watchCalendar}/events"
@@ -344,7 +345,7 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
     logMsg.push("eventListParams: ${eventListParams}")
 
     def evs = []
-    if (eventCache[watchCalendar] && eventCache[watchCalendar].events != null && eventCache[watchCalendar].events != [] && (now() - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[watchCalendar].lastUpdated).getTime() < (cacheMilliseconds))) {
+    if (GoogleMatching == false && eventCache[watchCalendar] && eventCache[watchCalendar].events != null && eventCache[watchCalendar].events != [] && (now() - Date.parse("yyyy-MM-dd'T'HH:mm:ssZ", eventCache[watchCalendar].lastUpdated).getTime() < (cacheMilliseconds))) {
         evs = atomicState.events[watchCalendar].events
         logMsg.push("events pulled from cache")
         // Since state values are stored as strings, convert date values to date
@@ -392,9 +393,10 @@ def getNextEvents(watchCalendar, search, endTimePreference) {
                     evs.push(eventDetails)
                 }
             }
-            
-            eventCache[watchCalendar].lastUpdated = pathParams.timeMin
-            eventCache[watchCalendar].events = evs
+            if (GoogleMatching == false) {
+                eventCache[watchCalendar].lastUpdated = pathParams.timeMin
+                eventCache[watchCalendar].events = evs
+            }
         } catch (e) {
             log.error "error: ${path}, ${e}, ${e.getResponse().getData()}"
             if (refreshAuthToken()) {
@@ -640,7 +642,7 @@ def setCacheDuration(type, tempEndTimePref=null) {
         def calendarCounter = [:]
         for (int c = 0; c < childApps.size(); c++) {
             def childApp = childApps[c]
-            if (type == "remove" && childApp.id == removeAppID) {
+            if ((type == "remove" && childApp.id == removeAppID) || childApp.GoogleMatching == true ) {
                 continue // Skip
             }
 
