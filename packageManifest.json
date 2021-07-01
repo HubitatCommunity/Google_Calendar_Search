@@ -1,12 +1,12 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "2.2.3",
+  "version": "2.3.1",
   "minimumHEVersion": "1.8.2",
-  "dateReleased": "2021-06-08",
+  "dateReleased": "2021-07-01",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-	"releaseNotes": "Fixed bug with caching of events. Fixed bug with getting end date of search range and cast error. If required endTimeHours preference is not set for some reason, it will default to end of current day. Added toggle to hide offset preferences to help reduce confusion on this optional feature.",
+	"releaseNotes": "Added settings for Google Query Matching, exclude words, ability to exclude All Day Events, sequential event settings, and ability to toggle/sync additional switches. Please see the community article for more details.",
   "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
