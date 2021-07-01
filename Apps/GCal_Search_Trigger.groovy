@@ -1,4 +1,4 @@
-def appVersion() { return "2.2.3" }
+def appVersion() { return "2.3.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -54,9 +54,15 @@ def selectCalendars() {
         section("${parent.getFormat("box", "Search Preferences")}") {
             //we can't do multiple calendars because the api doesn't support it and it could potentially cause a lot of traffic to happen
             input name: "watchCalendars", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:calendars, submitOnChange: true
-            paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li></ul>'
+            input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
+            if ( settings.GoogleMatching == false || settings.GoogleMatching == null) {
+                paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the calendar event using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any event on the calendar for that day, enter *</li><li>To exclude calendar events with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
+                input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+            } else {
+                paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
+            }
             input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
-            input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+            input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
             input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
             paragraph "${parent.getFormat("line")}"
         }
@@ -87,9 +93,11 @@ def selectCalendars() {
                 if ( settings.endTimePref == "Number of Hours from Current Time" ) {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
+                paragraph "${parent.getFormat("text", "<u>Sequential Event Preferences</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
+                input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                 paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
-                if ( settings.setOffset == true || settings.offsetStart || settings.offsetEnd ) {
+                if ( settings.setOffset == true ) {
                     input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
                     input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
                 }
@@ -103,6 +111,12 @@ def selectCalendars() {
                 input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                 paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle from this value.")}"
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
+                paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
+                input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
+                if ( settings.controlOtherSwitches == true ) {
+                    input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
+                    input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
+                }
                 paragraph "${parent.getFormat("line")}"
             }
         }
@@ -129,7 +143,9 @@ def installed() {
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : parent.translateEndTimePref(settings.endTimePref)
     def tempEndTimePref = [:]
     tempEndTimePref[settings.watchCalendars] = endTimePreference
-    parent.setCacheDuration("add", tempEndTimePref)
+    if (settings.GoogleMatching == false) {
+        parent.setCacheDuration("add", tempEndTimePref)
+    }
     initialize()
 }
 
@@ -188,82 +204,169 @@ def getNextEvents() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextEvents(settings.watchCalendars, search, endTimePreference)
+    def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
-    def item = []
     
+    def item = []
+    def foundMatch = false
     if (items && items.size() > 0) {
-        def searchTerms = search.toString()
-        if (caseSensitive == false) {
-            searchTerms = searchTerms.toLowerCase()
-        }
-        searchTerms = searchTerms.split(",")
-        def foundMatch = false
-        for (int s = 0; s < searchTerms.size(); s++) {
-            def searchTerm = searchTerms[s].trim()
-            logMsg.push("searchTerm: ${searchTerm}")
-            for (int i = 0; i < items.size(); i++) {
-                def itemMatch = false
-                def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
-                if (caseSensitive == false) {
-                    eventTitle = eventTitle.toLowerCase()
+        // Filter out all day events if set in settings
+        def tempItems,tempItem
+        if (settings.includeAllDay == false) {
+            tempItems = []
+            def allDayFilter = []
+            for (int a = 0; a < items.size(); a++) {
+                tempItem = items[a]
+                if (tempItem.eventAllDay == false) {
+                    tempItems.push(tempItem)
+                } else {
+                    allDayFilter.push("${tempItem.eventTitle}")
                 }
-                logMsg.push("eventTitle: ${eventTitle}")
-                if (searchTerm == "*") {
-                    itemMatch = true
-                } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
-                    itemMatch = true
-                } else if (searchTerm.indexOf("*") > -1) {
-                    def searchList = searchTerm.toString().split("\\*")
-                    for (int sL = 0; sL < searchList.size(); sL++) {
-                        def searchItem = searchList[sL].trim()
-                        if (eventTitle.indexOf(searchItem) > -1) {
+            }
+            items = tempItems
+            if (allDayFilter.size() > 0) {
+                logMsg.push("Filtered these All Day Events: ${allDayFilter}")
+            }
+        }
+        
+        // Filter out events if Event Offset End is before current time to prevent false toggle
+        def offsetEnd,tempEndTime
+        if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+            tempItems = []
+            def offsetEndFilter = []
+            for (int o = 0; o < items.size(); o++) {
+                tempItem = items[o]
+                def currentTime = new Date()
+                offsetEnd = settings.offsetEnd.toInteger()
+                tempEndTime = tempItem.eventEndTime.getTime()
+                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                tempEndTime = new Date(tempEndTime)
+                if (tempEndTime > currentTime) {
+                    tempItems.push(tempItem)
+                } else {
+                    offsetEndFilter.push("${tempItem.eventTitle}")
+                }  
+            }
+            items = tempItems
+            if (offsetEndFilter.size() > 0) {
+                logMsg.push("Filtered these events because of end offset: ${offsetEndFilter}")
+            }
+        }
+        
+        if (settings.GoogleMatching == true) {
+            // Default to the first event found by Google API
+            item = items[0]
+            foundMatch = true
+        } else {
+            def searchTerms = search.toString()
+            if (caseSensitive == false) {
+                searchTerms = searchTerms.toLowerCase()
+            }
+            searchTerms = searchTerms.split(",")
+            for (int s = 0; s < searchTerms.size(); s++) {
+                def searchTerm = searchTerms[s].trim()
+                logMsg.push("searchTerm: '${searchTerm}'")
+                def sequentialEventOffset = false
+
+                for (int i = 0; i < items.size(); i++) {
+                    def itemMatch = false
+                    def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
+                    if (caseSensitive == false) {
+                        eventTitle = eventTitle.toLowerCase()
+                    }
+                    logMsg.push("eventTitle: ${eventTitle}")
+
+                    def ignoreMatch = false
+                    if (searchTerm.indexOf("-") > -1) {
+                        def pattern = ~/-[\w]+/
+                        def ignoreWords = (searchTerm =~ pattern).findAll()
+                        for (int iG = 0; iG < ignoreWords.size(); iG++) {
+                            def ignoreWord = ignoreWords[iG].substring(1).trim()
+                            if (eventTitle.indexOf(ignoreWord) > -1) {
+                                logMsg.push("No Match: ignore word '${ignoreWord}' found")
+                                ignoreMatch = true
+                                break
+                            } else {
+                                //Remove word from searchTerm
+                                searchTerm = searchTerm.replace(ignoreWords[iG], "").trim()
+                            }
+                        }
+                        logMsg.push("searchTerm trimmed to'${searchTerm}'")
+                    }
+
+                    if (ignoreMatch == false) {
+                        if (searchTerm == "*") {
                             itemMatch = true
+                        } else if (searchTerm.startsWith("=") && eventTitle == searchTerm.substring(1)) {
+                            itemMatch = true
+                        } else if (searchTerm.indexOf("*") > -1) {
+                            def searchList = searchTerm.toString().split("\\*")
+                            for (int sL = 0; sL < searchList.size(); sL++) {
+                                def searchItem = searchList[sL].trim()
+                                if (eventTitle.indexOf(searchItem) > -1) {
+                                    itemMatch = true
+                                } else {
+                                    itemMatch = false
+                                    break
+                                }
+                            }
+                        } else if (eventTitle.startsWith(searchTerm)) {
+                            itemMatch = true
+                        }
+                    }
+
+                    logMsg.push("itemMatch: ${itemMatch}")
+                    if (itemMatch) {
+                        foundMatch = true
+                        if (item == []) {
+                            item = items[i]
+                        } else if (i < items.size()) {
+                            def newItem = items[i]
+                            if (settings.sequentialEvent) {
+                                if (item.eventEndTime >= newItem.eventStartTime) {
+                                    item.eventEndTime = newItem.eventEndTime
+                                }
+                            } else {
+                                if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
+                                    sequentialEventOffset = true
+                                }
+                                break
+                            }
                         } else {
-                            itemMatch = false
                             break
                         }
                     }
-                } else if (eventTitle.startsWith(searchTerm)) {
-                    itemMatch = true
                 }
-                logMsg.push("itemMatch: ${itemMatch}")
-                if (itemMatch) {
-                    foundMatch = true
-                    if (item == []) {
-                        item = items[i]
-                    } else if (i < items.size()) {
-                        def newItem = items[i]
-                        if (item.eventEndTime >= newItem.eventStartTime) {
-                            item.eventEndTime = newItem.eventEndTime
-                        }
-                    } else {
-                        break
-                    }
+
+                if (foundMatch) {
+                    break
                 }
             }
+        }
+        
+        if (foundMatch) {
+            item.scheduleStartTime = new Date(item.eventStartTime.getTime())
+            if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
+                def origStartTime = new Date(item.eventStartTime.getTime())
+                int offsetStart = settings.offsetStart.toInteger()
+                def tempStartTime = item.scheduleStartTime.getTime()
+                tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
+                item.scheduleStartTime.setTime(tempStartTime)
+                logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
+            }
 
-            if (foundMatch) {
-                item.scheduleStartTime = new Date(item.eventStartTime.getTime())
-                if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
-                    def origStartTime = new Date(item.eventStartTime.getTime())
-                    int offsetStart = settings.offsetStart.toInteger()
-                    def tempStartTime = item.scheduleStartTime.getTime()
-                    tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
-                    item.scheduleStartTime.setTime(tempStartTime)
-                    logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
+            item.scheduleEndTime = new Date(item.eventEndTime.getTime())
+            if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
+                def origEndTime = new Date(item.eventEndTime.getTime())
+                if (sequentialEventOffset && settings.offsetEnd == null) {
+                    offsetEnd = -1
+                } else {
+                    offsetEnd = settings.offsetEnd.toInteger()
                 }
-
-                item.scheduleEndTime = new Date(item.eventEndTime.getTime())
-                if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
-                    def origEndTime = new Date(item.eventEndTime.getTime())
-                    int offsetEnd = settings.offsetEnd.toInteger()
-                    def tempEndTime = item.scheduleEndTime.getTime()
-                    tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
-                    item.scheduleEndTime.setTime(tempEndTime)
-                    logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
-                }
-                break
+                tempEndTime = item.scheduleEndTime.getTime()
+                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                item.scheduleEndTime.setTime(tempEndTime)
+                logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
             }
         }
     }
@@ -281,6 +384,16 @@ def poll() {
     def childDevice = getChildDevice(state.deviceID)
     logDebug "poll - childDevice: ${childDevice}"
     childDevice.poll()
+}
+
+def syncChildSwitches(value){
+    if (value == "on") {
+        syncSwitches?.on()
+        reverseSwitches?.off()
+    } else {
+        syncSwitches?.off()
+        reverseSwitches?.on()
+    }
 }
 
 private uninstalled() {
