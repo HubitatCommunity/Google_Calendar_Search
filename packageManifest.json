@@ -1,12 +1,12 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "minimumHEVersion": "1.8.2",
   "dateReleased": "2021-08-23",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-	"releaseNotes": "Added the following new preferences in the GCal Search Trigger app: * Delay toggle to event start: By default the switch will toggle based on the matching Event Start Time. If this setting is set to false, the switch will toggle at the time a match by this search trigger. The switch will continue to toggle again based on the Event End Time. * Date Format: You can now choose the Date format for dates set within the child GCal Switch.  By default the time format set within the hub settings will be used however you may choose 'Other' and enter your own custom date/time format.",
+	"releaseNotes": "Added the following new preferences in the GCal Search Trigger app: * Delay toggle to event start: By default the switch will toggle based on the matching Event Start Time. If this setting is set to false, the switch will toggle at the time a match by this search trigger. The switch will continue to toggle again based on the Event End Time. * Date Format: You can now choose the Date format for dates set within the child GCal Switch.  By default the time format set within the hub settings will be used however you may choose 'Other' and enter your own custom date/time format. * Fixed small bug for updates to existing installations.",
   "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
