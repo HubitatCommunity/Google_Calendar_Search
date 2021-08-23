@@ -1,4 +1,4 @@
-def appVersion() { return "2.3.1" }
+def appVersion() { return "2.4.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -93,8 +93,10 @@ def selectCalendars() {
                 if ( settings.endTimePref == "Number of Hours from Current Time" ) {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
-                paragraph "${parent.getFormat("text", "<u>Sequential Event Preferences</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
+                paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
                 input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
+                paragraph "${parent.getFormat("text", "<u>Delay Event Toggle Preference</u>: By default the switch will toggle based on the matching Event Start Time. If this setting is set to false, the switch will toggle at the time a match by this search trigger. The switch will continue to toggle again based on the Event End Time.")}"
+                input name: "delayToggle", type: "bool", title: "Delay toggle to event start?", defaultValue: true
                 paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an event is found in the future from the current time, scheduled triggers will be created to toggle the switch based on the event start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the event dates.  For example, if you wish for the switch to toggle 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a calendar event.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
                 if ( settings.setOffset == true ) {
@@ -111,6 +113,11 @@ def selectCalendars() {
                 input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                 paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no calendar entry. If a calendar entry is found, the switch will toggle from this value.")}"
                 input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "on", options:["on","off"]
+                paragraph "${parent.getFormat("text", "<u>Date Fomat</u>: Adjust this setting to your desired date format.  By default time format will be based on the hub's time format setting.  Choose other to enter your own custom date/time format.  Please see <a href='https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html' target='_blank'>this website</a> for examples.")}"
+                input name: "dateFormat", type: "enum", title: "Date Format", required: true, defaultValue: "yyyy-MM-dd", options:["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy", "Other"], submitOnChange: true
+                if ( settings.dateFormat == "Other" ) {
+                    input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
+                }
                 paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
                 input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
                 if ( settings.controlOtherSwitches == true ) {
@@ -346,6 +353,9 @@ def getNextEvents() {
         
         if (foundMatch) {
             item.scheduleStartTime = new Date(item.eventStartTime.getTime())
+            if (settings.delayToggle == false) {
+                item.scheduleStartTime = new Date()
+            }
             if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
                 def origStartTime = new Date(item.eventStartTime.getTime())
                 int offsetStart = settings.offsetStart.toInteger()
@@ -354,7 +364,7 @@ def getNextEvents() {
                 item.scheduleStartTime.setTime(tempStartTime)
                 logMsg.push("Event start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
             }
-
+            
             item.scheduleEndTime = new Date(item.eventEndTime.getTime())
             if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
                 def origEndTime = new Date(item.eventEndTime.getTime())
@@ -378,6 +388,29 @@ def getNextEvents() {
 
 def clearEventCache() {
     parent.clearEventCache(settings.watchCalendars)
+}
+
+def formatDateTime(dateTime) {
+    def defaultDateFormat = "yyyy-MM-dd HH:mm:ss"
+    def dateTimeFormat, sdf
+    if (settings.dateFormat != "Other") {
+        def dateFormat = settings.dateFormat
+        def timeFormat = (location.getTimeFormat() == 24) ? "HH:mm:ss" : "hh:mm:ss a"
+        dateTimeFormat = dateFormat + " " + timeFormat
+    } else if (settings.dateFormatOther) {
+        dateTimeFormat = settings.dateFormatOther
+    } else {
+        dateTimeFormat = defaultDateFormat
+    }
+    
+    try {
+        sdf = new java.text.SimpleDateFormat(dateTimeFormat)
+    } catch (e) {
+        log.warn "Custom date format entered is invalid: ${e}"
+        sdf = new java.text.SimpleDateFormat(defaultDateFormat)
+    }
+    sdf.setTimeZone(location.timeZone)	
+    return sdf.format(dateTime);
 }
 
 def poll() {
