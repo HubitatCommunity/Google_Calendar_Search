@@ -1,4 +1,4 @@
-def driverVersion() { return "2.3.1" }
+def driverVersion() { return "2.4.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -71,7 +71,7 @@ def poll() {
     
     def result = []
     def syncValue
-    result << sendEvent(name: "lastUpdated", value: nowDateTime, displayed: false)
+    result << sendEvent(name: "lastUpdated", value: parent.formatDateTime(nowDateTime), displayed: false)
     def item = parent.getNextEvents()
     if (item && item.eventTitle) {
         logMsg.push("event found, item: ${item}")
@@ -79,8 +79,8 @@ def poll() {
         result << sendEvent(name: "eventTitle", value: item.eventTitle )
         result << sendEvent(name: "eventLocation", value: item.eventLocation )
         result << sendEvent(name: "eventAllDay", value: item.eventAllDay )
-        result << sendEvent(name: "eventStartTime", value: item.eventStartTime )
-        result << sendEvent(name: "eventEndTime", value: item.eventEndTime )
+        result << sendEvent(name: "eventStartTime", value: parent.formatDateTime(item.eventStartTime) )
+        result << sendEvent(name: "eventEndTime", value: parent.formatDateTime(item.eventEndTime) )
         
         logMsg.push("nowDateTime(${nowDateTime}) < item.scheduleStartTime(${item.scheduleStartTime})")
         if (nowDateTime < item.scheduleStartTime) {
