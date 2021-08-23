@@ -1,4 +1,4 @@
-def appVersion() { return "2.4.0" }
+def appVersion() { return "2.4.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -393,11 +393,11 @@ def clearEventCache() {
 def formatDateTime(dateTime) {
     def defaultDateFormat = "yyyy-MM-dd HH:mm:ss"
     def dateTimeFormat, sdf
-    if (settings.dateFormat != "Other") {
+    if (settings.dateFormat != null && settings.dateFormat != "Other") {
         def dateFormat = settings.dateFormat
         def timeFormat = (location.getTimeFormat() == 24) ? "HH:mm:ss" : "hh:mm:ss a"
         dateTimeFormat = dateFormat + " " + timeFormat
-    } else if (settings.dateFormatOther) {
+    } else if (settings.dateFormat != null) {
         dateTimeFormat = settings.dateFormatOther
     } else {
         dateTimeFormat = defaultDateFormat
