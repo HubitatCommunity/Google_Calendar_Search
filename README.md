@@ -9,7 +9,7 @@ For discussion and more information, visit the <a href="https://community.hubita
 ![image](https://user-images.githubusercontent.com/10900324/131907567-57341667-82a5-4bf2-88d7-4a5eb954f77e.png)
 3. Give your project a name and click **Create**
 
-![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
+    ![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
 
 4. In the left navigation, click **OAuth consent screen**, Choose External and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
@@ -39,11 +39,13 @@ For discussion and more information, visit the <a href="https://community.hubita
 
 18. Click **Enable**
 
-![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
+    ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
  
 19. Click the "Hamburger" Navigation menu button in the upper left corner beside Google Cloud Platform, click APIs & Services and then **OAuth consent screen**
 20. Under Publishing status, Click **Publish App** and Confirm in the popup
 ![image](https://user-images.githubusercontent.com/10900324/115977225-f6fb7a80-a543-11eb-88f6-d77d9605c30d.png)
+21. You will see that your project is in "Needs verification" status, don't worry about that or the warning that it requires verification by Google.  Since this project is for your individual use, that process isn't necessary.
+22. Be sure you have your Client ID and Client Secret handy to continue setup within your HE hub.  If you ever need to get them again, you can navigate to APIs & Services and then Credentials to view your OAuth credentials.  Clicking the Pencil icon will expose your Client ID and Client Secret.
 
 ## Hubitat Installation and Setup
 Note: Google Calendar Search is available via <a href="https://community.hubitat.com/t/beta-hubitat-package-manager/38016" target="_blank">Hubitat Package Manager (HPM)</a>. If you install via HPM, skip to Step 5 below.
