@@ -1,4 +1,4 @@
-def appVersion() { return "2.4.2" }
+def appVersion() { return "2.5.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -313,7 +313,7 @@ def getCalendarList() {
     return stats
 }
 
-def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference) {
+def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offsetEnd) {
     def eventCache = atomicState.events
     def cacheEndTimePreference = translateEndTimePref(GoogleMatching == false && eventCache[watchCalendar].endTimePref ? eventCache[watchCalendar].endTimePref : endTimePreference)
     endTimePreference = translateEndTimePref(endTimePreference)
@@ -325,7 +325,8 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference) {
         //maxResults: 1,
         orderBy: "startTime",
         singleEvents: true,
-        timeMin: getCurrentTime(),
+        //timeMin: getCurrentTime(),
+        timeMin: getStartTime(offsetEnd),
         timeMax: getEndDate(cacheEndTimePreference)
     ]
     
@@ -548,7 +549,8 @@ private refreshAuthToken() {
             }
         }
         catch(Exception e) {
-            log.error "caught exception refreshing auth token: " + e + ", " + e.getResponse().getData()
+            //log.error "caught exception refreshing auth token: " + e + ", " + e.getResponse().getData()
+            log.error "caught exception refreshing auth token: " + e
         }
     }
     logDebug("${logMsg}")
@@ -563,6 +565,21 @@ def getCurrentTime() {
     //RFC 3339 format
     //2015-06-20T11:39:45.0Z
     def d = new Date().format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
+    return d
+}
+
+def getStartTime(offsetEnd) {
+    //RFC 3339 format
+    //2015-06-20T11:39:45.0Z
+    def startDate = new Date()
+    
+    if (offsetEnd != null && !offsetEnd.toString().startsWith("-")) {
+        def tempStartTime = startDate.getTime()
+        tempStartTime = tempStartTime - offsetEnd
+        startDate.setTime(tempStartTime)
+    }
+
+    def d = startDate.format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
     return d
 }
 
