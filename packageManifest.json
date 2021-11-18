@@ -1,12 +1,13 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "2.5.1",
+  "version": "2.4.2",
   "minimumHEVersion": "1.8.2",
-  "dateReleased": "2021-11-18",
+  "dateReleased": "2021-09-07",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-	"releaseNotes": "New Feature: If Event End Offset is entered, this amount of time will be included when querying for new calendar events.  For example if you entered an offset of 30 minutes so the switch stays on 30 additional minutes, during a calendar search an additional -30 minutes is added to the query so that any events that just ended 30 minutes ago are still included so the switch will not turn off. This is useful for frequent periodic queries. Bug Fixes: The "Expand end date for sequential events" included in v2.X only worked for HE based event matching.  Corrected the code to also work when Google Query Matching is enabled.",  "apps": [
+	"releaseNotes": "New Feature: If Event End Offset is entered, this amount of time will be included when querying for new calendar events.  For example if you entered an offset of 30 minutes so the switch stays on 30 additional minutes, during a calendar search an additional -30 minutes is added to the query so that any events that just ended 30 minutes ago are still included so the switch will not turn off. This is useful for frequent periodic queries. Bug Fixes: The "Expand end date for sequential events" included in v2.X only worked for HE based event matching.  Corrected the code to also work when Google Query Matching is enabled.",
+  "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
       "name": "GCal Search",
