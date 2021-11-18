@@ -1,4 +1,4 @@
-def appVersion() { return "2.4.2" }
+def appVersion() { return "2.5.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -211,11 +211,19 @@ def getNextEvents() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference)
+    
+    def offsetEnd
+    if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+        offsetEnd = settings.offsetEnd.toInteger()
+        offsetEnd = offsetEnd * 60 * 1000
+    }
+    
+    def items = parent.getNextEvents(settings.watchCalendars, settings.GoogleMatching, search, endTimePreference, offsetEnd)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
     def item = []
     def foundMatch = false
+    def sequentialEventOffset = false
     if (items && items.size() > 0) {
         // Filter out all day events if set in settings
         def tempItems,tempItem
@@ -237,16 +245,15 @@ def getNextEvents() {
         }
         
         // Filter out events if Event Offset End is before current time to prevent false toggle
-        def offsetEnd,tempEndTime
-        if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+        def tempEndTime
+        if (offsetEnd != null) {
             tempItems = []
             def offsetEndFilter = []
+            def currentTime = new Date()
             for (int o = 0; o < items.size(); o++) {
                 tempItem = items[o]
-                def currentTime = new Date()
-                offsetEnd = settings.offsetEnd.toInteger()
                 tempEndTime = tempItem.eventEndTime.getTime()
-                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                tempEndTime = tempEndTime + offsetEnd
                 tempEndTime = new Date(tempEndTime)
                 if (tempEndTime > currentTime) {
                     tempItems.push(tempItem)
@@ -260,11 +267,9 @@ def getNextEvents() {
             }
         }
         
-        if (settings.GoogleMatching == true) {
-            // Default to the first event found by Google API
-            item = items[0]
-            foundMatch = true
-        } else {
+        // If Google Matching is disabled, check for match
+        if (settings.GoogleMatching == false && items.size() > 0) {
+            tempItems = []
             def searchTerms = search.toString()
             if (caseSensitive == false) {
                 searchTerms = searchTerms.toLowerCase()
@@ -273,9 +278,9 @@ def getNextEvents() {
             for (int s = 0; s < searchTerms.size(); s++) {
                 def searchTerm = searchTerms[s].trim()
                 logMsg.push("searchTerm: '${searchTerm}'")
-                def sequentialEventOffset = false
 
                 for (int i = 0; i < items.size(); i++) {
+                    tempItem = items[i]
                     def itemMatch = false
                     def eventTitle = (settings.searchField == "title") ? items[i].eventTitle : items[i].eventLocation
                     if (caseSensitive == false) {
@@ -324,33 +329,40 @@ def getNextEvents() {
 
                     logMsg.push("itemMatch: ${itemMatch}")
                     if (itemMatch) {
-                        foundMatch = true
-                        if (item == []) {
-                            item = items[i]
-                        } else if (i < items.size()) {
-                            def newItem = items[i]
-                            if (settings.sequentialEvent) {
-                                if (item.eventEndTime >= newItem.eventStartTime) {
-                                    item.eventEndTime = newItem.eventEndTime
-                                }
-                            } else {
-                                if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
-                                    sequentialEventOffset = true
-                                }
-                                break
-                            }
-                        } else {
-                            break
-                        }
+                        tempItems.push(tempItem)
                     }
                 }
-
-                if (foundMatch) {
-                    break
+            }
+            
+            items = tempItems
+        }
+        
+        if (items.size() > 0) {
+            item = items[0]
+            foundMatch = true
+            
+            if (items.size() > 1 && settings.sequentialEvent) {
+                for (int i = 1; i < items.size(); i++) {
+                    if (i < items.size()) {
+                        def newItem = items[i]
+                        if (settings.sequentialEvent) {
+                            if (item.eventEndTime >= newItem.eventStartTime) {
+                                item.eventEndTime = newItem.eventEndTime
+                            }
+                        } else {
+                            if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
+                                sequentialEventOffset = true
+                            }
+                            break
+                        }
+                    } else {
+                        break
+                    }
                 }
             }
         }
         
+        logMsg.push("foundMatch: ${foundMatch}, item: ${item}")
         if (foundMatch) {
             item.scheduleStartTime = new Date(item.eventStartTime.getTime())
             if (settings.delayToggle == false) {
@@ -366,15 +378,13 @@ def getNextEvents() {
             }
             
             item.scheduleEndTime = new Date(item.eventEndTime.getTime())
-            if ((settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") || sequentialEventOffset) {
+            if (offsetEnd != null || sequentialEventOffset) {
                 def origEndTime = new Date(item.eventEndTime.getTime())
-                if (sequentialEventOffset && settings.offsetEnd == null) {
-                    offsetEnd = -1
-                } else {
-                    offsetEnd = settings.offsetEnd.toInteger()
+                if (sequentialEventOffset && offsetEnd == null) {
+                    offsetEnd = -1 * 60 * 1000
                 }
                 tempEndTime = item.scheduleEndTime.getTime()
-                tempEndTime = tempEndTime + (offsetEnd * 60 * 1000)
+                tempEndTime = tempEndTime + offsetEnd
                 item.scheduleEndTime.setTime(tempEndTime)
                 logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
             }
