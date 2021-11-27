@@ -1,4 +1,4 @@
-def appVersion() { return "2.5.1" }
+def appVersion() { return "2.5.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
@@ -341,21 +341,23 @@ def getNextEvents() {
             item = items[0]
             foundMatch = true
             
-            if (items.size() > 1 && settings.sequentialEvent) {
+            if (items.size() > 1) {
                 for (int i = 1; i < items.size(); i++) {
-                    if (i < items.size()) {
-                        def newItem = items[i]
-                        if (settings.sequentialEvent) {
-                            if (item.eventEndTime >= newItem.eventStartTime) {
-                                item.eventEndTime = newItem.eventEndTime
-                            }
-                        } else {
-                            if (item.eventEndTime == newItem.eventStartTime && settings.whenToRun == "Periodically") {
-                                sequentialEventOffset = true
-                            }
-                            break
+                    def newItem = items[i]
+                    def currentEventEndTime = new Date(item.eventEndTime.getTime())
+                    def nextEventStartTime = new Date(newItem.eventStartTime.getTime())
+                    if (settings.sequentialEvent) {
+                        if (settings.includeAllDay && item.eventAllDay && newItem.eventAllDay) {
+                            tempEndTime = currentEventEndTime.getTime()
+                            tempEndTime = tempEndTime + 60
+                            currentEventEndTime.setTime(tempEndTime)
                         }
-                    } else {
+                        logMsg.push("includeAllDay(${settings.includeAllDay}) && currentEventEndTime(${currentEventEndTime}) >= nextEventStartTime(${nextEventStartTime}): ${currentEventEndTime >= nextEventStartTime}")
+                        if (currentEventEndTime >= nextEventStartTime) {
+                            item.eventEndTime = newItem.eventEndTime
+                        }
+                    } else if (currentEventEndTime == nextEventStartTime && settings.whenToRun == "Periodically") {
+                        sequentialEventOffset = true
                         break
                     }
                 }
