@@ -30,7 +30,7 @@ For discussion and more information, visit the <a href="https://community.hubita
 14. At the top, click **+ Create Credentials** and choose **OAuth client ID**
 ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
 
-15. Set Application type to **Desktop app**, set a Name, and click **Create**
+15. Set Application type to **TVs and Limited Input devices** (Desktop app worked previously but recent updates to the Console require TVs and Limited Input devices, screenshot will be updated later), set a Name, and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976744-0af0ad80-a53f-11eb-99d2-fbeac0d2cd3e.png)
 
 16. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
