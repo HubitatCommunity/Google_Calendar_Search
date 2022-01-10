@@ -28,11 +28,11 @@ For discussion and more information, visit the <a href="https://community.hubita
 12. In the left navigation, click **Credentials**
 
 13. At the top, click **+ Create Credentials** and choose **OAuth client ID**
-![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
+    ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
 
 14. Set Application type to **TVs and Limited Input devices** (Desktop app worked previously but recent updates to the Console require TVs and Limited Input devices), set a Name, and click **Create**
 
-![image](https://user-images.githubusercontent.com/10900324/148835036-5d5f6f5e-7f5b-49ee-9525-4ec4e367e158.png)
+    ![image](https://user-images.githubusercontent.com/10900324/148835036-5d5f6f5e-7f5b-49ee-9525-4ec4e367e158.png)
 
 15. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
 16. In the top blue search, enter 'calendar' and choose **Google Calendar API** under Marketplace
