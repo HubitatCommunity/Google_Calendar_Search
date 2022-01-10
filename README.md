@@ -14,38 +14,38 @@ For discussion and more information, visit the <a href="https://community.hubita
 4. In the left navigation, click **OAuth consent screen**, Choose External and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
 
-6. Set an App name, User support email, and Developer contact information and click **Save and Continue**
+5. Set an App name, User support email, and Developer contact information and click **Save and Continue**
 ![image](https://user-images.githubusercontent.com/10900324/115976691-6cfce300-a53e-11eb-881b-5e996868c97a.png)
 
-7. Click **Add or Remove Scopes**
-8. In the Manually add scopes, enter https://www.googleapis.com/auth/calendar.readonly and click **Add to Table**
+6. Click **Add or Remove Scopes**
+7. In the Manually add scopes, enter https://www.googleapis.com/auth/calendar.readonly and click **Add to Table**
 ![image](https://user-images.githubusercontent.com/10900324/115977112-d121a600-a542-11eb-862b-a206b5d5c3d8.png)
 
-9. Click **Update**
-10. Scroll and click **Save and Continue**
-11. On Test Users, Scroll and click **Save and Continue**
-12. On Summary, Scroll and click **Back to Dashboard**
-13. In the left navigation, click **Credentials**
+8. Click **Update**
+9. Scroll and click **Save and Continue**
+10. On Test Users, Scroll and click **Save and Continue**
+11. On Summary, Scroll and click **Back to Dashboard**
+12. In the left navigation, click **Credentials**
 
-14. At the top, click **+ Create Credentials** and choose **OAuth client ID**
+13. At the top, click **+ Create Credentials** and choose **OAuth client ID**
 ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
 
-15. Set Application type to **TVs and Limited Input devices** (Desktop app worked previously but recent updates to the Console require TVs and Limited Input devices, screenshot will be updated later), set a Name, and click **Create**
-![image](https://user-images.githubusercontent.com/10900324/115976744-0af0ad80-a53f-11eb-99d2-fbeac0d2cd3e.png)
+14. Set Application type to **TVs and Limited Input devices** (Desktop app worked previously but recent updates to the Console require TVs and Limited Input devices), set a Name, and click **Create**
+![image](https://user-images.githubusercontent.com/10900324/148835036-5d5f6f5e-7f5b-49ee-9525-4ec4e367e158.png)
 
-16. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
-17. In the top blue search, enter 'calendar' and choose **Google Calendar API** under Marketplace
+15. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
+16. In the top blue search, enter 'calendar' and choose **Google Calendar API** under Marketplace
 ![image](https://user-images.githubusercontent.com/10900324/115977025-b569d000-a541-11eb-859a-410082044a67.png)
 
-18. Click **Enable**
+17. Click **Enable**
 
     ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
  
-19. Click the "Hamburger" Navigation menu button in the upper left corner beside Google Cloud Platform, click APIs & Services and then **OAuth consent screen**
-20. Under Publishing status, Click **Publish App** and Confirm in the popup
+18. Click the "Hamburger" Navigation menu button in the upper left corner beside Google Cloud Platform, click APIs & Services and then **OAuth consent screen**
+19. Under Publishing status, Click **Publish App** and Confirm in the popup
 ![image](https://user-images.githubusercontent.com/10900324/115977225-f6fb7a80-a543-11eb-88f6-d77d9605c30d.png)
-21. You will see that your project is in "Needs verification" status, don't worry about that or the warning that it requires verification by Google.  Since this project is for your individual use, that process isn't necessary.
-22. Be sure you have your Client ID and Client Secret handy to continue setup within your HE hub.  If you ever need to get them again, you can navigate to APIs & Services and then Credentials to view your OAuth credentials.  Clicking the Pencil icon will expose your Client ID and Client Secret.
+20. You will see that your project is in "Needs verification" status, don't worry about that or the warning that it requires verification by Google.  Since this project is for your individual use, that process isn't necessary.
+21. Be sure you have your Client ID and Client Secret handy to continue setup within your HE hub.  If you ever need to get them again, you can navigate to APIs & Services and then Credentials to view your OAuth credentials.  Clicking the Pencil icon will expose your Client ID and Client Secret.
 
 ## Hubitat Installation and Setup
 Note: Google Calendar Search is available via <a href="https://community.hubitat.com/t/beta-hubitat-package-manager/38016" target="_blank">Hubitat Package Manager (HPM)</a>. If you install via HPM, skip to Step 5 below.
