@@ -222,7 +222,7 @@ def getOAuthInitUrl() {
 		client_id: getClientId(),
 		state: state.oauthInitState,
 		redirect_uri: getRedirectURL(),
-        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/reminders"
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks"
 	]
     
     OAuthInitUrl += "?" + toQueryString(oauthParams)
