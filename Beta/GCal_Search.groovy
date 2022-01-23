@@ -58,7 +58,7 @@ def mainPage() {
         def isAuthorized = false
         if (atomicState.authToken) {
             section("${getFormat("box", "Calendar Search")}") {
-                if (atomicState.scopesAuthorized.indexOf("auth/calendar") > -1) {
+                if (atomicState.scopesAuthorized && atomicState.scopesAuthorized.indexOf("auth/calendar") > -1) {
                     app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Calendar Search...", multiple: true)
                 } else {
                     paragraph "${getFormat("text", "Please repeat the Google API Authorization and select calendar access.")}"
@@ -67,7 +67,7 @@ def mainPage() {
             }
 
             section("${getFormat("box", "Task Search")}") {
-                if (atomicState.scopesAuthorized.indexOf("auth/tasks") > -1) {
+                if (atomicState.scopesAuthorized && atomicState.scopesAuthorized.indexOf("auth/tasks") > -1) {
                     app(name: "childApps", appName: "GTask Search Trigger", namespace: "HubitatCommunity", title: "New Task Search...", multiple: true)
                 } else {
                     paragraph "${getFormat("text", "Authentication Problem! Please repeat the Google API Authorization and select task access.")}"
@@ -222,7 +222,7 @@ def getOAuthInitUrl() {
 		client_id: getClientId(),
 		state: state.oauthInitState,
 		redirect_uri: getRedirectURL(),
-        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks"
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/reminders"
 	]
     
     OAuthInitUrl += "?" + toQueryString(oauthParams)
