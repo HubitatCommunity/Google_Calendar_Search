@@ -1,4 +1,4 @@
-def driverVersion() { return "3.0.0" }
+def driverVersion() { return "3.0.1" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -153,13 +153,15 @@ def off() {
 }
 
 def updateTask(value) {
-    if (state.kind != "task") {
+    if (state.kind != "task" && state.kind != "reminder") {
         return
     }
     
     def taskID = device.currentValue("taskID")
     if (taskID != "" && determineSwitch(true) != value) {
-        if (parent.completeTask(taskID)) {
+        if (state.kind == "task" && parent.completeTask(taskID)) {
+            poll()
+        } else if (state.kind == "reminder" && parent.completeReminder(taskID)) {
             poll()
         } else {
             log.error "task could not be completed"
