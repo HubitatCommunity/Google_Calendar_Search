@@ -1,4 +1,4 @@
-def appVersion() { return "3.0.0" }
+def appVersion() { return "3.0.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -57,21 +57,8 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "${getFormat("title", "GCal Search Version " + appVersion())}", uninstall: false, install: true) {
         def isAuthorized = false
         if (atomicState.authToken) {
-            section("${getFormat("box", "Calendar Search")}") {
-                if (atomicState.scopesAuthorized && atomicState.scopesAuthorized.indexOf("auth/calendar") > -1) {
-                    app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Calendar Search...", multiple: true)
-                } else {
-                    paragraph "${getFormat("text", "Please repeat the Google API Authorization and select calendar access.")}"
-                }
-                paragraph "${getFormat("line")}"
-            }
-
-            section("${getFormat("box", "Task Search")}") {
-                if (atomicState.scopesAuthorized && atomicState.scopesAuthorized.indexOf("auth/tasks") > -1) {
-                    app(name: "childApps", appName: "GTask Search Trigger", namespace: "HubitatCommunity", title: "New Task Search...", multiple: true)
-                } else {
-                    paragraph "${getFormat("text", "Authentication Problem! Please repeat the Google API Authorization and select task access.")}"
-                }
+            section("${getFormat("box", "Search Triggers")}") {
+                app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Search...", multiple: true)
                 paragraph "${getFormat("line")}"
             }
         }	  
@@ -136,7 +123,7 @@ def authenticationReset() {
     atomicState.refreshToken = null
     atomicState.tokenExpires = null
     atomicState.scopesAuthorized = null
-    
+    upgradeSettings()
     authenticationPage()
 }
 
@@ -180,17 +167,6 @@ def updated() {
 }
 
 def initialize() {
-    // Removed old states from previous version that are no longer utilized.  This code will be removed in the future
-    state.remove("setup")
-    state.remove("calendars")
-    state.remove("events")
-    state.remove("authCode")
-    state.remove("last_use")
-    
-    childApps.each {
-        child ->
-            logDebug "initialize - child app: ${child.label}"
-    }
     if (!state.accessToken) {
         def accessToken = createAccessToken()
 		state.accessToken = accessToken
@@ -394,8 +370,8 @@ def apiGet(fromFunction, uri, path, queryParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (refreshAuthToken()) {
-                return apiGet(fromFunction, path, queryParams)
+            if (e.response.status == 401 && refreshAuthToken()) {
+                return apiGet(fromFunction, uri, path, queryParams)
             } else {
                 log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
             }
@@ -415,12 +391,13 @@ def apiPut(fromFunction, uri, path, bodyParams) {
     logMsg.push("apiPut - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
     
     if (isAuthorized == true) {
+        def output = new JsonOutput()
         def apiParams = [
             uri: uri,
             path: path,
             contentType: "application/json",
-            headers: ["Content-Type": "text/json", "Authorization": "Bearer ${atomicState.authToken}"],
-            body: bodyParams
+            headers: ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
+            body: output.toJson(bodyParams)
         ]
         logMsg.push("apiParams: ${apiParams}")
         
@@ -431,10 +408,95 @@ def apiPut(fromFunction, uri, path, bodyParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (refreshAuthToken()) {
-                return apiPut(fromFunction, path, bodyParams)
+            if (e.response.status == 401 && refreshAuthToken()) {
+                return apiPut(fromFunction, uri, path, bodyParams)
             } else {
                 log.error "apiPut - path: ${path}, ${e}, ${e.getResponse().getData()}"
+            }
+        }
+    } else {
+        logMsg.push("Authentication Problem")
+    }
+    
+    logDebug("${logMsg}")
+    return apiResponse
+}
+
+def apiPatch(fromFunction, uri, path, bodyParams) {
+    def logMsg = []
+    def apiResponse = []  
+    def isAuthorized = authTokenValid(fromFunction)
+    logMsg.push("apiPatch - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
+    
+    if (isAuthorized == true) {
+        def output = new JsonOutput()
+        def apiParams = [
+            uri: uri,
+            path: path,
+            contentType: "application/json",
+            headers: ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
+            body: output.toJson(bodyParams)
+        ]
+        logMsg.push("apiParams: ${apiParams}")
+        
+        try {
+            httpPatch(apiParams) {
+                resp ->
+                apiResponse = resp.data
+                logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
+            }
+        } catch (e) {
+            if (e.response.status == 401 && refreshAuthToken()) {
+                return apiPatch(fromFunction, uri, path, bodyParams)
+            } else {
+                log.error "apiPatch - path: ${path}, ${e}, ${e.getResponse().getData()}"
+            }
+        }
+    } else {
+        logMsg.push("Authentication Problem")
+    }
+    
+    logDebug("${logMsg}")
+    return apiResponse
+}
+
+def apiPost(fromFunction, uri, path, protobuf, bodyParams) {
+    def logMsg = []
+    def apiResponse = [:]  
+    def isAuthorized = authTokenValid(fromFunction)
+    logMsg.push("apiPost - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
+    
+    if (isAuthorized == true) {
+        def contentType = "application/json"
+        
+        if (protobuf) {
+            contentType += "+protobuf"
+        }
+        
+        def apiParams = [
+            uri: uri,
+            path: path,
+            contentType: "application/json",
+            headers: ["Content-Type": contentType, "Authorization": "Bearer ${atomicState.authToken}"]
+        ]
+        if (bodyParams) {
+            def output = new JsonOutput()
+            apiParams.body = output.toJson(bodyParams)
+        }
+        logMsg.push("apiParams: ${apiParams}")
+        
+        try {
+            httpPost(apiParams) {
+                resp ->
+                apiResponse.status = resp.status
+                apiResponse.data = resp.data
+                logDebug "apiResponse: ${apiResponse}"
+            }
+        } catch (e) {
+            if (e.response.status == 401 && refreshAuthToken()) {
+                return apiPost(fromFunction, uri, path, bodyParams)
+            } else {
+                log.error "apiPost - path: ${path}, ${e}, ${e.getResponse().getData()}"
             }
         }
     } else {
@@ -556,12 +618,12 @@ def getTaskList() {
     return taskList
 }
 
-def getNextTasks(watchCalendar, search, endTimePreference) {
+def getNextTasks(taskList, search, endTimePreference) {    
     endTimePreference = translateEndTimePref(endTimePreference)
-    def logMsg = ["getNextTasks - watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}"]
-    def taskList = []
+    def logMsg = ["getNextTasks - taskList: ${taskList}, search: ${search}, endTimePreference: ${endTimePreference}"]
+    def tasksList = []
     def uri = "https://www.googleapis.com"
-    def path = "/tasks/v1/lists/${watchCalendar}/tasks"
+    def path = "/tasks/v1/lists/${taskList}/tasks"
     def queryParams = [
         //maxResults: 1,
         showCompleted: false,
@@ -579,55 +641,212 @@ def getNextTasks(watchCalendar, search, endTimePreference) {
             taskDetails.taskID = task.id
             def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
             taskDetails.taskDueDate = sdf.parse(task.due)
-            taskList.push(taskDetails)
+            tasksList.push(taskDetails)
         }
     }
     
-    logMsg.push("taskList:\n${taskList.join("\n")}")
+    logMsg.push("tasksList:\n${tasksList.join("\n")}")
     logDebug("${logMsg}")
-    return taskList
+    return tasksList
 }
 
 def completeTask(watchTaskList, taskID) {
     def logMsg = ["completeTask - watchTaskList: ${watchTaskList}, taskID: ${taskID} - "]
     def uri = "https://tasks.googleapis.com"
     def path = "/tasks/v1/lists/${watchTaskList}/tasks/${taskID}"
-    def putParams = [
+    def bodyParams = [
         id: taskID,
         status: "completed"
     ]
-    def output = new JsonOutput()
-    def task = apiPut("completeTask", uri, path, output.toJson(putParams))
-    logMsg.push("putParams: ${putParams}, task: ${task}")
+    def task = apiPatch("completeTask", uri, path, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, task: ${task}")
     logDebug("${logMsg}")
     return task
 }
 
 /* ============================= End Google Task ============================= */
 
-/* ============================= Start Google Reminder ============================= */
+/* ============================= Start Google Reminder - WARNING: Uses unnofficial API ============================= */
+
+def getNextReminders(search, endTimePreference) {
+    endTimePreference = translateEndTimePref(endTimePreference)
+    def logMsg = ["getNextReminders - search: ${search}, endTimePreference: ${endTimePreference}"]
+    def reminderList = []
+    def uri = "https://reminders-pa.clients6.google.com"
+    def path = "/v1internalOP/reminders/list"
+    def dueMax = getEndDate(endTimePreference, false)
+    logMsg.push("dueMax: ${dueMax}")
+    def bodyParams = [
+        //"max_results": 10,
+        //"utc_due_before_ms": dueMax.getTime()
+        "due_before_ms": dueMax.getTime()
+    ]
+    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+        
+    if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
+        for (int i = 0; i < reminders.data.task.size(); i++) {
+            def reminder = reminders.data.task[i]
+            def dueDate = getReminderDate(reminder.dueDate)
+            if (dueDate <= dueMax) {
+                def reminderDetails = [:]
+                reminderDetails.kind = "reminder"
+                reminderDetails.taskTitle = reminder.title.trim()
+                reminderDetails.taskID = reminder.taskId.serverAssignedId
+                reminderDetails.taskDueDate = dueDate
+                reminderList.push(reminderDetails)
+            }
+        }
+        reminderList.sort{it.taskDueDate}
+    }
+    
+    logMsg.push("reminderList:\n${reminderList.join("\n")}")
+    logDebug("${logMsg}")
+    return reminderList
+}
+
+def getSpecificReminder(taskID) {
+    def logMsg = ["getSpecificReminder - taskID: ${taskID}"]
+    def reminderList = []
+    def uri = "https://reminders-pa.clients6.google.com"
+    def path = "/v1internalOP/reminders/get"
+    def bodyParams = [
+        "taskId": [['serverAssignedId': taskID]]
+    ]
+    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+        
+    if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
+        for (int i = 0; i < reminders.data.task.size(); i++) {
+            def reminder = reminders.data.task[i]
+            def reminderDetails = [:]
+            reminderDetails.kind = "reminder"
+            reminderDetails.taskTitle = reminder.title.trim()
+            reminderDetails.taskID = reminder.taskId.serverAssignedId
+            reminderDetails.taskDueDate = getReminderDate(reminder.dueDate)
+            reminderList.push(reminderDetails)
+        }
+    }
+    
+    logMsg.push("reminderList:\n${reminderList.join("\n")}")
+    logDebug("${logMsg}")
+    return reminderList
+}
+
+def getReminderDate(dueDate) {
+    //[year:2022, month:1, day:24, time:[hour:20, minute:0, second:0]]
+    //[year:2022, month:2, day:3, allDay:true]
+    def dateString = new Date().copyWith(
+        year: dueDate.year, 
+        month: dueDate.month-1,
+        dayOfMonth: dueDate.day, 
+        hourOfDay: (dueDate.time) ? dueDate.time.hour : 0,
+        minute: (dueDate.time) ? dueDate.time.minute : 0,
+        second: (dueDate.time) ? dueDate.time.second : 0
+    )
+    
+    return dateString
+}
+
+def deleteReminder(taskID) {
+    def logMsg = ["deleteReminder - taskID: ${taskID}"]
+    def reminderDeleted = false
+    def uri = "https://reminders-pa.clients6.google.com"
+    def path = "/v1internalOP/reminders/delete"
+    def bodyParams = [
+        "taskId": [["serverAssignedId": taskID]]
+    ]
+    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+        
+    if (reminders.status == 200 ) {
+        reminderDeleted = true
+    }
+    
+    logMsg.push("reminderDeleted: ${reminderDeleted}")
+    logDebug("${logMsg}")
+    return reminderDeleted
+}
+
+def completeReminder(taskID) {
+    def logMsg = ["completeReminder - taskID: ${taskID}"]
+    def reminderCompleted = false
+    def uri = "https://reminders-pa.clients6.google.com"
+    def path = "/v1internalOP/reminders/update"
+    def bodyParams = [
+        "1": ["4": "WRP / /WebCalendar/calendar_190319.03_p1"],
+        "2": ["1": taskID],
+        "4": ["1": ["1": taskID], "8": 1],
+        "7": ["1": [1, 10, 3]],
+    ]
+    
+    def reminders = apiPost("getNextReminders", uri, path, true, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+        
+    if (reminders.status == 200 ) {
+        reminderCompleted = true
+    }
+    
+    logMsg.push("reminderCompleted: ${reminderCompleted}")
+    logDebug("${logMsg}")
+    return reminderCompleted
+}
 
 /*
-WARNING USING UNOFFICIAL API
-TODO to add later
+def completeReminder2(taskID) {
+    //taskID = "1723034518730493062"
+    def logMsg = ["completeReminder - "]
+    def bodyParams = [
+    '1': ['4': "WRP / /WebCalendar/calendar_190319.03_p1"],
+        '2': ['1': taskID],
+        '4': ['1': ['1': taskID],
+              '8': 1],
+        '7': ['1': [1, 10, 3]]
+    ]
+    
+    def output = new JsonOutput()
+    bodyParams = output.toJson(bodyParams)
+    
+    logMsg.push("bodyParams: ${bodyParams}")
+    
+    def path = "/v1internalOP/reminders/update"
+    def eventListParams = [
+        uri: "https://reminders-pa.clients6.google.com",
+        path: path,
+        headers: ["Content-Type": "application/json+protobuf", "Authorization": "Bearer ${atomicState.authToken}"],
+        body: bodyParams
+    ]
+    logMsg.push("eventListParams: ${eventListParams}")
+
+    try {
+        httpPost(eventListParams) {
+            resp ->
+            log.debug "Resp Status: ${resp.status}, resp: ${resp}, resp.data: ${resp.data}"
+        }
+    } catch (e) {
+        log.error "completeReminder - error: ${path}, ${e}, ${e.getResponse().getData()}"
+    }
+                  
+    logDebug("${logMsg}")
+}
 
 def getReminders() {
     def logMsg = ["getReminders - "]
-    def pathParams = [
+    def bodyParams = [
         "5": 1,
         "6": 20
     ]
     def output = new JsonOutput()
-    pathParams = output.toJson(pathParams)
+    bodyParams = output.toJson(bodyParams)
     
-    logMsg.push("pathParams: ${pathParams}")
+    logMsg.push("bodyParams: ${bodyParams}")
     
     def path = "/v1internalOP/reminders/list"
     def eventListParams = [
         uri: "https://reminders-pa.clients6.google.com",
         path: path,
         headers: ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
-        //body: pathParams
+        //body: bodyParams
     ]
     logMsg.push("eventListParams: ${eventListParams}")
 
@@ -767,7 +986,7 @@ def getStartTime(offsetEnd) {
     return d
 }
 
-def getEndDate(endTimePreference) {
+def getEndDate(endTimePreference, format=true) {
     //RFC 3339 format
     //2015-06-20T11:39:45.0Z
     def endDate = new Date()
@@ -790,9 +1009,14 @@ def getEndDate(endTimePreference) {
         tempEndTime = tempEndTime + (numberOfHours * 1000 * 60 * 60)
         endDate.setTime(tempEndTime)
     }
-
-    def d = endDate.format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
-    return d
+    
+    def returnDate
+    if (format) {
+        returnDate = endDate.format("yyyy-MM-dd'T'HH:mm:ssZ", location.timeZone)
+    } else {
+        returnDate = endDate
+    }
+    return returnDate
 }
 
 def translateEndTimePref(endTimePref) {
@@ -821,6 +1045,23 @@ def getFormat(type, displayText=""){ // Modified from @Stephack and @dman2306 Co
     if(type == "text") return "<span style='font-size: 14pt;'>${displayText}</span>"
     if(type == "warning") return "<span style='font-size: 14pt;color:red'><strong>${displayText}</strong></span>"
     if(type == "line") return "<hr style='background-color:" + color + "; height: 1px; border: 0;'>"
+}
+
+def getScopesAuthorized() {
+    def answer = []
+    def scopesAuthorized = state.scopesAuthorized
+    
+    if (scopesAuthorized.indexOf("auth/calendar") > -1) {
+        answer.push("Calendar")
+    }
+    if (scopesAuthorized.indexOf("auth/tasks") > -1) {
+        answer.push("Task")
+    }
+    if (scopesAuthorized.indexOf("auth/reminders") > -1) {
+        answer.push("Reminder")
+    }
+    
+    return answer
 }
 
 def connectionStatus(message, redirectUrl = null) {
@@ -856,4 +1097,30 @@ private logDebug(msg) {
         }
         log.debug "$msg"
     }
+}
+
+def upgradeSettings() {
+	childApps.each {
+        child ->
+        child.upgradeSettings()
+        log.info "Upgraded ${child.label} settings"
+    }
+	
+	// Remove old states from previous version that are no longer utilized.  This code will be removed in the future
+	state.remove("authCode")
+    state.remove("calendars")
+	state.remove("deviceCode")
+    state.remove("events")
+    state.remove("isScheduled")
+    state.remove("last_use")
+	state.remove("setup")
+	state.remove("userCode")
+	state.remove("verificationUrl")
+	
+	// Remove old settings from previous version that are no longer utilized.
+	app.removeSetting("cacheThreshold")
+	app.removeSetting("clearCache")
+	app.removeSetting("resyncNow")
+	
+	log.info "Upgraded GCal Search settings"
 }
