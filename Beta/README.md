@@ -24,7 +24,7 @@ For discussion and more information, visit the <a href="https://community.hubita
 11. In the left navigation, click **Credentials**
 12. At the top, click **+ Create Credentials** and choose **OAuth client ID**
     ![image](https://user-images.githubusercontent.com/10900324/115976721-e1378680-a53e-11eb-8c4b-88cfd55022cb.png)
-13. Set Application type to **Web application**, set a Name, set Authorized redirect URIs to https://cloud.hubitat.com/oauth/stateredirect
+13. Set Application type to **Web application**, set a **Name**, set **Authorized redirect URIs** to https://cloud.hubitat.com/oauth/stateredirect
     ![image](https://user-images.githubusercontent.com/10900324/151466429-40365e10-e315-447e-95d0-6da9276600a9.png)
 14. Click **Create**
 15. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
