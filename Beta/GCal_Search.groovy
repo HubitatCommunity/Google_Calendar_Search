@@ -1,4 +1,4 @@
-def appVersion() { return "3.0.1" }
+def appVersion() { return "3.0.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -53,17 +53,22 @@ mappings {
 	path("/callback") {action: [GET: "callback"]}
 }
 
+/*
+    To Do remove upgrade check from authTokenValid in future
+*/
+
 def mainPage() {
     dynamicPage(name: "mainPage", title: "${getFormat("title", "GCal Search Version " + appVersion())}", uninstall: false, install: true) {
-        def isAuthorized = false
-        if (atomicState.authToken) {
+        def isAuthorized = authTokenValid("mainPage")
+        logDebug("mainPage - isAuthorized: ${isAuthorized}")
+        if (isAuthorized) {
             section("${getFormat("box", "Search Triggers")}") {
                 app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Search...", multiple: true)
                 paragraph "${getFormat("line")}"
             }
         }	  
         section("${getFormat("box", "Authentication")}") {
-            if (!atomicState.authToken) {
+            if (!isAuthorized) {
                 paragraph "${getFormat("warning", "Authentication Problem! Please click the button below to setup Google API Authorization.")}"
             }
             href ("authenticationPage", title: "Google API Authorization", description: "Click for Google Authentication")
@@ -83,10 +88,13 @@ def mainPage() {
 def authenticationPage() {
     dynamicPage(name: "authenticationPage", uninstall: false, nextPage: "mainPage") {
         section("${getFormat("box", "Google Authentication")}") {
-            if (!atomicState.authToken) {
-                paragraph "${getFormat("text", "Enter your Google API credentials below:")}"
+            def isAuthorized = authTokenValid("authenticationPage")
+            if (!isAuthorized && !atomicState.authToken) {
+                paragraph "${getFormat("text", "Enter your Google API credentials below.  Instructions to setup these credentials can be found in <a href='https://github.com/HubitatCommunity/Google_Calendar_Search' target='_blank'>HubitatCommunity GitHub</a>.")}"
                 input "gaClientID", "text", title: "Google API Client ID", required: true, submitOnChange: true
                 input "gaClientSecret", "text", title: "Google API Client Secret", required: true, submitOnChange: true
+            } else if (!isAuthorized) {
+                paragraph "${getFormat("warning", "Authentication Problem! Please click Reset Google Authentication and try the setup again.")}"
             } else {
                 paragraph "${getFormat("text", "<strong>Authentication process complete! Click Next to continue setup.</strong>")}"
             }
@@ -104,14 +112,13 @@ def authenticationPage() {
 }
 
 def authenticationInstructions(step1Complete) {
-    def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Three steps are required to complete the Google authentication process:</strong></span></p>"
-    text += "<ol style='list-style-position: inside;font-size:15px;'>"
-    if (step1Complete) text += "<strike>"
-    text += "<li>Tap the 'Get Google API User Code' button to get a User Code.&nbsp; Once received, copy the code into your clipboard as you will need it in step 2.</li>"
-    if (step1Complete) text += "</strike>"
-    text += "<li>Click the 'Authenticate GCal Search' button and enter the User Code from step 1 and then enter your Google Credentials and follow the additional steps.</li>"
-    text += "<li>After successfully authenticating to Google, click the 'Check Authentication' to finalize the setup.</li>"
-    text += "</ol>"
+    def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Steps required to complete the Google authentication process:</strong></span></p>"
+    text += "<ul style='list-style-position: inside;font-size:15px;'>"
+    text += "<li>Tap the 'Authenticate GCal Search' button below to start the authentication process.</li>"
+    text += "<li>A popup will appear walking you through process as outlined in the instructions on GitHub.</li>"
+    text += "<li>Be sure to select the appropriate access to Google Calendar, Google Reminders, and/or Google Tasks.</li>"
+    text += "<li>Troubleshooting Note: If the popup presents an 'Authorization Error, Error 400: redirect_uri_mismatch' please check your OAuth credential in the Google Console to ensure it is of type Web application and that the redirect URI is set correctly.</li>"
+    text += "</ul>"
     
     return text
 }
@@ -123,7 +130,6 @@ def authenticationReset() {
     atomicState.refreshToken = null
     atomicState.tokenExpires = null
     atomicState.scopesAuthorized = null
-    upgradeSettings()
     authenticationPage()
 }
 
@@ -167,6 +173,8 @@ def updated() {
 }
 
 def initialize() {
+    upgradeSettings()
+    state.version = appVersion()
     if (!state.accessToken) {
         def accessToken = createAccessToken()
 		state.accessToken = accessToken
@@ -316,12 +324,17 @@ private refreshAuthToken() {
 }
 
 def authTokenValid(fromFunction) {
+    //Upgrade check
+    if (state.scopesAuthorized == null && ["mainPage", "authenticationPage"].indexOf(fromFunction) > -1) {
+        return false
+    }
+    
     if (atomicState.tokenExpires >= now()) {
         logDebug "authTokenValid - fromFunction: ${fromFunction}, authToken good expires ${new Date(atomicState.tokenExpires)}"
         return true
     } else {
         def refreshAuthToken = refreshAuthToken()
-        logDebug "authTokenValid - fromFunction: ${fromFunction}, authToken null or expired (${new Date(atomicState.tokenExpires)}) - calling refreshAuthToken: ${refreshAuthToken}"
+        logDebug "authTokenValid - fromFunction: ${fromFunction}, authToken ${(atomicState.tokenExpires == null) ? "null" : "expired (" + new Date(atomicState.tokenExpires) + ")"} - calling refreshAuthToken: ${refreshAuthToken}"
         return refreshAuthToken
     }
 }
@@ -367,11 +380,14 @@ def apiGet(fromFunction, uri, path, queryParams) {
             httpGet(apiParams) {
                 resp ->
                 apiResponse = resp.data
-                logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
+                logDebug "Resp Status: ${resp.status}}"
             }
         } catch (e) {
             if (e.response.status == 401 && refreshAuthToken()) {
                 return apiGet(fromFunction, uri, path, queryParams)
+            } else if (e.response.status == 403) {
+                log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                apiResponse = "error"
             } else {
                 log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
             }
@@ -380,6 +396,7 @@ def apiGet(fromFunction, uri, path, queryParams) {
         logMsg.push("Authentication Problem")
     }
     
+    logMsg.push("apiResponse: ${apiResponse}")
     logDebug("${logMsg}")
     return apiResponse
 }
@@ -519,12 +536,14 @@ def getCalendarList() {
     def calendars = apiGet("getCalendarList", uri, path, queryParams)
     logMsg.push("getCalendarList - path: ${path}, queryParams: ${queryParams}, calendars: ${calendars}")
     
-    if (calendars.size() > 0) {
+    if (calendars instanceof Map && calendars.size() > 0) {
         calendars.items.each {
             calendarItem ->
             calendarList[calendarItem.id] = (calendarItem.summaryOverride) ? calendarItem.summaryOverride : calendarItem.summary
         }
         logMsg.push("calendarList: ${calendarList}")
+    } else {
+        calendarList = calendars
     }
     
     logDebug("${logMsg}")
@@ -605,12 +624,14 @@ def getTaskList() {
     def taskLists = apiGet("getTaskList", uri, path, queryParams)
     logMsg.push("getTaskList - path: ${path}, queryParams: ${queryParams}, taskLists: ${taskLists}")
     
-    if (taskLists.size() > 0) {
+    if (taskLists instanceof Map && taskLists.size() > 0) {
         taskLists.items.each {
             taskListItem ->
             taskList[taskListItem.id] = taskListItem.title
         }
         logMsg.push("taskLists: ${taskLists}")
+    } else {
+        taskList = taskLists
     }
     
     logDebug("${logMsg}")
@@ -1052,7 +1073,7 @@ def getScopesAuthorized() {
     def scopesAuthorized = state.scopesAuthorized
     
     if (scopesAuthorized.indexOf("auth/calendar") > -1) {
-        answer.push("Calendar")
+        answer.push("Calendar Event")
     }
     if (scopesAuthorized.indexOf("auth/tasks") > -1) {
         answer.push("Task")
@@ -1100,27 +1121,28 @@ private logDebug(msg) {
 }
 
 def upgradeSettings() {
-	childApps.each {
-        child ->
-        child.upgradeSettings()
-        log.info "Upgraded ${child.label} settings"
+    if (state.version == null || state.version != appVersion()) {
+        childApps.each {
+            child ->
+            child.upgradeSettings()
+        }
+
+        // Remove old states from previous version that are no longer utilized.  This code will be removed in the future
+        state.remove("authCode")
+        state.remove("calendars")
+        state.remove("deviceCode")
+        state.remove("events")
+        state.remove("isScheduled")
+        state.remove("last_use")
+        state.remove("setup")
+        state.remove("userCode")
+        state.remove("verificationUrl")
+
+        // Remove old settings from previous version that are no longer utilized.
+        app.removeSetting("cacheThreshold")
+        app.removeSetting("clearCache")
+        app.removeSetting("resyncNow")
+
+        log.info "Upgraded GCal Search settings"
     }
-	
-	// Remove old states from previous version that are no longer utilized.  This code will be removed in the future
-	state.remove("authCode")
-    state.remove("calendars")
-	state.remove("deviceCode")
-    state.remove("events")
-    state.remove("isScheduled")
-    state.remove("last_use")
-	state.remove("setup")
-	state.remove("userCode")
-	state.remove("verificationUrl")
-	
-	// Remove old settings from previous version that are no longer utilized.
-	app.removeSetting("cacheThreshold")
-	app.removeSetting("clearCache")
-	app.removeSetting("resyncNow")
-	
-	log.info "Upgraded GCal Search settings"
 }
