@@ -1,4 +1,4 @@
-def appVersion() { return "3.0.1" }
+def appVersion() { return "3.0.2" }
 /**
  *  GTask Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GTask_Search_Trigger
@@ -20,6 +20,7 @@ def appVersion() { return "3.0.1" }
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+import hubitat.helper.RMUtils
 
 definition(
     name: "GCal Search Trigger",
@@ -47,42 +48,66 @@ def mainPage() {
 			} else {
 				input name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", submitOnChange: true
 			}
-		}
-        section("${parent.getFormat("box", "Search Preferences")}") {
-            def scopesAuthorized = parent.getScopesAuthorized()
-            def watchListOptions
-            input name: "searchType", title:"Do you want to search Google Calendar, Task or Reminder?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
-            //Default value above isn't working so set a default to prevent app errors
-            if (settings.searchType == null) {
-                settings.searchType = "Calendar"
-            }
-            if ( settings.searchType == "Calendar" ) {
-                watchListOptions = parent.getCalendarList()
-                logDebug "mainPage - Calendar list = ${watchListOptions}, scopesAuthorized: ${scopesAuthorized}"
-                input name: "watchList", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
-                input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
-                input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
-                input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
-                if ( settings.GoogleMatching == true) {
-                    paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
-                }
-            } else if ( settings.searchType == "Task" ) {
-                settings.GoogleMatching == null // Task API doesn't allow text searching
-                watchListOptions = parent.getTaskList()
-                logDebug "mainPage - Task list = ${watchListOptions}, scopesAuthorized: ${scopesAuthorized}"
-                input name: "watchList", title:"Which task list do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
-            } else {
-                logDebug "mainPage - scopesAuthorized: ${scopesAuthorized}"
-                settings.GoogleMatching == null // Reminder API doesn't allow text searching
-            }
-            if ( settings.GoogleMatching == false || settings.GoogleMatching == null ) {
-                paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
-                input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
-            }
-            input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
-            paragraph "${parent.getFormat("line")}"
         }
-        
+
+        section("${parent.getFormat("box", "Search Preferences")}") {
+            def isAuthorized = parent.authTokenValid("search trigger mainPage")
+            if (!isAuthorized) {
+                paragraph "${parent.getFormat("warning", "Authentication Problem! Please setup again in the parent GCal Search app.")}"
+            } else {
+                def scopesAuthorized = parent.getScopesAuthorized()
+                if (scopesAuthorized == null) {
+                    log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade."
+                }
+                def watchListOptions
+                input name: "searchType", title:"Do you want to search Google Calendar Event, Task or Reminder?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
+                //Default value above isn't working so set a default to prevent app errors
+                if ((settings.searchType == null || settings.searchType == "Calendar") && scopesAuthorized != null) {
+                    if (scopesAuthorized.indexOf("Calendar") > -1) {
+                        settings.searchType = "Calendar Event"
+                        app.updateSetting("searchType", [value:"Calendar Event", type:"enum"])
+                    } else {
+                        settings.searchType = scopesAuthorized[0]
+                        app.updateSetting("searchType", [value:"${scopesAuthorized[0]}", type:"enum"])
+                    }
+                }
+                logDebug("mainPage - settings.searchType: ${settings.searchType}, scopesAuthorized: ${scopesAuthorized}")
+                if ( settings.searchType == "Calendar Event" ) {
+                    watchListOptions = parent.getCalendarList()
+                    if (watchListOptions == "error") {
+                        paragraph "${parent.getFormat("warning", "The Google Calendar API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/api/calendar-json.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
+                    } else {
+                        logDebug("Calendar list = ${watchListOptions}")
+                        input name: "watchList", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
+                        input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
+                        input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
+                        input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
+                        if ( settings.GoogleMatching == true) {
+                            paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
+                        }
+                    }
+                } else if ( settings.searchType == "Task" ) {
+                    settings.GoogleMatching == null // Task API doesn't allow text searching
+                    watchListOptions = parent.getTaskList()
+                    if (watchListOptions == "error") {
+                        paragraph "${parent.getFormat("warning", "The Google Tasks API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/library/tasks.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
+                    } else {
+                        logDebug("Task list = ${watchListOptions}")
+                        input name: "watchList", title:"Which task list do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
+                    }
+                } else {
+                    logDebug("scopesAuthorized: ${scopesAuthorized}")
+                    settings.GoogleMatching == null // Reminder API doesn't allow text searching
+                }
+                if ( settings.GoogleMatching == false || settings.GoogleMatching == null ) {
+                    paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
+                    input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
+                }
+                input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
+                paragraph "${parent.getFormat("line")}"
+            }
+        }
+
         if ( settings.search ) {
             section("${parent.getFormat("box", "Schedule Settings")}") {
                 paragraph "${parent.getFormat("text", "${settings.searchType} searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression.")}"
@@ -109,7 +134,7 @@ def mainPage() {
                 if ( settings.endTimePref == "Number of Hours from Current Time" ) {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
-                if ( settings.searchType == "Calendar" ) {
+                if ( settings.searchType == "Calendar Event" ) {
                     paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
                     input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                 }
@@ -119,7 +144,7 @@ def mainPage() {
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
                 if ( settings.setOffset == true ) {
                     input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
-                    if ( settings.searchType == "Calendar" ) {
+                    if ( settings.searchType == "Calendar Event" ) {
                         input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
                     }
                 }
@@ -129,20 +154,62 @@ def mainPage() {
         
         if ( settings.search ) {
             section("${parent.getFormat("box", "Child Switch Preferences")}") {
-                def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
-                input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
-                paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no task. If a task is found, the switch will toggle from this value.")}"
-                input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "off", options:["on","off"]
-                paragraph "${parent.getFormat("text", "<u>Date Format</u>: Adjust this setting to your desired date format.  By default time format will be based on the hub's time format setting.  Choose other to enter your own custom date/time format.  Please see <a href='https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html' target='_blank'>this website</a> for examples.")}"
-                input name: "dateFormat", type: "enum", title: "Date Format", required: true, defaultValue: "yyyy-MM-dd", options:["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy", "Other"], submitOnChange: true
-                if ( settings.dateFormat == "Other" ) {
-                    input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
+                if (settings.resyncNow == true) {
+                    runIn(10, poll)
+                    app.updateSetting("resyncNow",[type: "bool", value: false])
                 }
-                paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
-                input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
-                if ( settings.controlOtherSwitches == true ) {
-                    input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
-                    input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
+                
+                paragraph "${parent.getFormat("text", "<u>Create child switch</u>: By default this app will create and toggle a child switch when an item matches the search criteria.  Many inbuilt apps have restrictions based on the state of a switch where the rule won't if say for example a particular switch is turned on.  In other use cases, a child switch may bring unnecessary overhead.  Choose what you wish to happen when an item matches the search criteria.")}"
+                input name: "createChildSwitch", type: "bool", title: "Create child switch?", defaultValue: true, required: false, submitOnChange: true
+                if ( settings.createChildSwitch != false ) {
+                    def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
+                    input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
+                    paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no task. If a task is found, the switch will toggle from this value.")}"
+                    input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "off", options:["on","off"]
+                    paragraph "${parent.getFormat("text", "<u>Date Format</u>: Adjust this setting to your desired date format.  By default time format will be based on the hub's time format setting.  Choose other to enter your own custom date/time format.  Please see <a href='https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html' target='_blank'>this website</a> for examples.")}"
+                    input name: "dateFormat", type: "enum", title: "Date Format", required: true, defaultValue: "yyyy-MM-dd", options:["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy", "Other"], submitOnChange: true
+                    if ( settings.dateFormat == "Other" ) {
+                        input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
+                    }
+                    paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
+                    input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
+                    if ( settings.controlOtherSwitches == true ) {
+                        input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
+                        input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
+                    }
+                } else {
+                    input "resyncNow", "bool", title: "Run poll now", required: false, defaultValue: false, submitOnChange: true
+                }
+                paragraph "${parent.getFormat("line")}"
+            }
+            section("${parent.getFormat("box", "Additional Action Preferences")}") {
+                paragraph "${parent.getFormat("text", "Notifications can be sent/spoken and Rule Machine rules can be evaluated based on an item matching search criteria.")}"
+                input "sendNotification", "bool", title: "Send notifications?", defaultValue: false, submitOnChange: true
+                if ( settings.sendNotification == true ) {
+                    def startMsg, endMsg
+                    if ( settings.searchType == "Calendar Event" ) {
+                        startMsg = "Custom message to send at event <u>scheduled start</u>"
+                        endMsg = "Custom message to send at event <u>scheduled end</u>"
+                    } else {
+                        startMsg = "Custom message to send at " + settings.searchType.toLowerCase() + " due date"
+                        endMsg = "Custom message to send when " + settings.searchType.toLowerCase() + " is completed"
+                    }
+                    
+                    paragraph "${parent.getFormat("text", "<u>Custom message to send</u>: " + getNotificationMsgDescription(settings.searchType))}"
+                    input name: "notificationStartMsg", type: "textarea", title: "${startMsg}", required: false
+                    input name: "notificationEndMsg", type: "textarea", title: "${endMsg}", required: false
+                    input "notificationDevices", "capability.notification", title: "Send notification to device(s)?", required: false, multiple: true
+                    input "speechDevices", "capability.speechSynthesis", title: "Speak notification on these device(s)?", required: false, multiple: true
+                }
+                paragraph "${parent.getFormat("line")}"
+                input "runRuleActions", "bool", title: "Run Rule Machine actions?", defaultValue: false, submitOnChange: true
+                if ( settings.runRuleActions == true ) {
+                    def legacyRules = RMUtils.getRuleList()
+                    if (legacyRules != null) {
+                        input "legacyRule", "enum", title: "Select which Rule Machine Legacy rules to run", options: legacyRules, multiple: true
+                    }
+                    def currentRules = RMUtils.getRuleList('5.0')
+                    input "currentRule", "enum", title: "Select which rules to run", options: currentRules, multiple: true
                 }
                 paragraph "${parent.getFormat("line")}"
             }
@@ -165,6 +232,17 @@ def mainPage() {
 	}       
 }
 
+def getNotificationMsgDescription(searchType) {
+    def answer
+    if (searchType == "Calendar Event") {
+        answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
+    } else {
+        answer = "Use %taskTitle% to include task title and %taskDueDate% to include task due date."
+    }
+    
+    return answer
+}
+
 def installed() {
 	state.isPaused = false
     initialize()
@@ -184,15 +262,17 @@ def initialize() {
     // Sets Label of Trigger
     updateAppLabel()
     
-    state.deviceID = "GCal_${app.id}"
-    def childDevice = getChildDevice(state.deviceID)
-    if (!childDevice) {
-        logDebug("initialize - creating device: deviceID: ${state.deviceID}")
-        childDevice = addChildDevice("HubitatCommunity", "GCal Switch", "GCal_${app.id}", null, [name: "GCal Switch", label: deviceName])
-        childDevice.updateSetting("isDebugEnabled",[value:"${isDebugEnabled}",type:"bool"])
-        childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
-    } else {
-        childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
+    if ( settings.createChildSwitch != false ) {
+        state.deviceID = "GCal_${app.id}"
+        def childDevice = getChildDevice(state.deviceID)
+        if (!childDevice) {
+            logDebug("initialize - creating device: deviceID: ${state.deviceID}")
+            childDevice = addChildDevice("HubitatCommunity", "GCal Switch", "GCal_${app.id}", null, [name: "GCal Switch", label: deviceName])
+            childDevice.updateSetting("isDebugEnabled",[value:"${isDebugEnabled}",type:"bool"])
+            childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
+        } else {
+            childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
+        }
     }
     if (!state.isPaused) {
         if ( settings.whenToRun == "Once Per Day" ) {
@@ -231,6 +311,12 @@ def getNextItems() {
 }
 
 def getNextEvents() {
+    // Code to be removed later, temporarily set watchList variable so the calendar search continues to work
+    if (settings.watchList == null && settings.watchCalendars != null) {
+        settings.watchList = settings.watchCalendars
+        log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade."
+    }
+    
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
@@ -361,6 +447,10 @@ def getNextEvents() {
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
+    
+    atomicState.item = item
+    scheduleNotification(item)
+    evaluateRule(item)
     return item
 }
 
@@ -411,6 +501,10 @@ def getNextTasks() {
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
+    
+    atomicState.item = item
+    scheduleNotification(item)
+    evaluateRule(item)
     return item
 }
 
@@ -424,6 +518,8 @@ def completeTask(taskID) {
         answer = true
     }
     
+    triggerEndNotification()
+    triggerEndRule()
     logMsg.push("returning : ${answer}")
     logDebug("${logMsg}")
     return answer
@@ -476,16 +572,135 @@ def getNextReminders() {
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
+    
+    atomicState.item = item
+    scheduleNotification(item)
+    evaluateRule(item)
     return item
 }
 
 def completeReminder(taskID) {
     def logMsg = ["completeReminder - taskID: ${taskID}"]
     def answer = parent.completeReminder(taskID)
+    triggerEndNotification()
+    triggerEndRule()
 
     logMsg.push("returning : ${answer}")
     logDebug("${logMsg}")
     return answer
+}
+
+def scheduleNotification(item) {
+    def logMsg = ["scheduleNotification - item: ${item}"]
+    if (settings.sendNotification != true || (settings.notificationStartMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
+        logMsg.push("not scheduling notification(s)")
+        logDebug("${logMsg}")
+        return
+    }
+    
+    unschedule(triggerStartNotification)
+    unschedule(triggerEndNotification)
+    
+    if (item.scheduleStartTime != null && settings.notificationStartMsg != null) {
+        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+        logMsg.push("scheduling start notification at ${scheduleStartTime}")
+        runOnce(scheduleStartTime, triggerStartNotification)
+    }
+    
+    if (item.scheduleEndTime != null && settings.notificationEndMsg != null && searchType == "Calendar Event") {
+        logMsg.push("scheduling end notification at ${item.scheduleEndTime}")
+        runOnce(item.scheduleEndTime, triggerEndNotification)
+    }
+    logDebug("${logMsg}")
+}
+
+def triggerStartNotification() {
+    def msg = settings.notificationStartMsg
+    composeNotification(msg)
+}
+
+def triggerEndNotification() {
+    if (settings.sendNotification != true || settings.notificationEndMsg == null || (settings.notificationDevices == null && settings.speechDevices == null)) {
+        return
+    }
+    
+    def msg = settings.notificationEndMsg
+    composeNotification(msg)
+}
+
+def composeNotification(msg) {
+    if (msg.indexOf("%") > -1) {
+        def pattern = /(?<=%).*?(?=%)/
+        def counter = 0
+        while (msg.indexOf("%") > -1) {
+            def matches = msg =~ pattern
+            def match = matches[0]
+            def value
+            switch (match) {
+                case "eventStartTime":
+                    value = formatDateTime(atomicState.item["scheduleStartTime"])
+                    break
+                case "eventEndTime":
+                    value = formatDateTime(atomicState.item["scheduleEndTime"])
+                    break
+                case "taskDueDate":
+                    value = formatDateTime(atomicState.item["scheduleStartTime"])
+                    break
+                default:
+                    value = atomicState.item[match]
+            }
+            def textMatch = "%" + match + "%"
+            msg = msg.replace(textMatch, value)
+        }
+    }
+    
+    logDebug("composeNotification msg: ${msg}")
+    notificationDevices?.deviceNotification(msg)
+    speechDevices?.speak(msg)
+}
+
+def evaluateRule(item) {
+    def logMsg = ["evaluateRule - item: ${item}"]
+    if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
+        logMsg.push("not evaluating rule")
+        logDebug("${logMsg}")
+        return
+    }
+    
+    unschedule(triggerStartRule)
+    unschedule(triggerEndRule)
+    
+    if (item.scheduleStartTime != null) {
+        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+        logMsg.push("scheduling start rule actions at ${scheduleStartTime}")
+        runOnce(scheduleStartTime, triggerStartRule)
+    }
+    
+    if (item.scheduleEndTime != null && searchType == "Calendar Event") {
+        logMsg.push("scheduling end rule actions at ${item.scheduleEndTime}")
+        runOnce(item.scheduleEndTime, triggerEndRule)
+    }
+    logDebug("${logMsg}")
+}
+
+def triggerStartRule() {
+    if (settings.legacyRule) {
+        RMUtils.sendAction(settings.legacyRule, "runRuleAct", app.label)
+    }
+    
+    if (settings.currentRule) {
+        RMUtils.sendAction(settings.currentRule, "runRuleAct", app.label, "5.0")
+    }
+}
+
+def triggerEndRule() {
+    if (settings.legacyRule) {
+        RMUtils.sendAction(settings.legacyRule, "runRuleAct", app.label)
+    }
+    
+    if (settings.currentRule) {
+        RMUtils.sendAction(settings.currentRule, "runRuleAct", app.label, "5.0")
+    }
 }
 
 def formatDateTime(dateTime) {
@@ -507,14 +722,25 @@ def formatDateTime(dateTime) {
         log.warn "Custom date format entered is invalid: ${e}"
         sdf = new java.text.SimpleDateFormat(defaultDateFormat)
     }
-    sdf.setTimeZone(location.timeZone)	
+    sdf.setTimeZone(location.timeZone)
+    if (dateTime instanceof String) {
+        def stringSDF = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
+        dateTime = stringSDF.parse(dateTime)
+    }
+    
     return sdf.format(dateTime)
 }
 
 def poll() {
-    def childDevice = getChildDevice(state.deviceID)
-    logDebug "poll - childDevice: ${childDevice}"
-    childDevice.poll()
+    if ( settings.createChildSwitch == true ) {
+        def childDevice = getChildDevice(state.deviceID)
+        logDebug "poll - childDevice: ${childDevice}"
+        childDevice.poll()
+    } else {
+        logDebug "poll - no childDevice"
+        unschedule()
+        getNextItems()
+    }
 }
 
 def syncChildSwitches(value){
@@ -590,6 +816,7 @@ def upgradeSettings(){
     if (settings.watchCalendars && settings.watchCalendars != null) {
         app.updateSetting("watchList", [value:"${settings.watchCalendars}", type:"enum"])
         app.removeSetting("watchCalendars")
-        app.updateSetting("searchType", [value:"Calendar", type:"enum"])
+        app.updateSetting("searchType", [value:"Calendar Event", type:"enum"])
+        log.info "Upgraded ${app.label} settings"
     }
 }
