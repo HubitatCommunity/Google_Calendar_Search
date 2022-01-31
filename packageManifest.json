@@ -6,7 +6,7 @@
   "dateReleased": "2021-11-29",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
   "communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-  "releaseNotes": "Fixed a bug with syncing additional switches and the matched event is multi-day.",
+  "releaseNotes": "Fixed a bug with syncing additional switches and the matched event is multi-day. Testing please ignore the following...<span style='background-color: #ffff00;'>Important please read upgrade instructions.</span> test test <a href='https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/Beta/README.md' target='_blank'>Link test</a>.",
   "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
