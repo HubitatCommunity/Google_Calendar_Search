@@ -8,6 +8,7 @@ For discussion and more information, visit the Hubitat Community <a href="https:
 2. In the left navigation, click APIs & Services, Dashboard, and click **Create Project** on the right
 ![image](https://user-images.githubusercontent.com/10900324/131907567-57341667-82a5-4bf2-88d7-4a5eb954f77e.png)
 3. Give your project a name and click **Create**
+    
     ![image](https://user-images.githubusercontent.com/10900324/115976609-a4b75b00-a53d-11eb-860e-a99b74d2175a.png)
 4. In the left navigation, click **OAuth consent screen**, Choose External and click **Create**
 ![image](https://user-images.githubusercontent.com/10900324/115976626-d7f9ea00-a53d-11eb-8212-66129f4a3dbb.png)
