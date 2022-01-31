@@ -1,7 +1,7 @@
 # Google Calendar, Task, and Reminder Search
 Hubitat Google Calendar, Task, and Reminder Search
 
-For discussion and more information, visit the <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Reminder Search</a>.
+For discussion and more information, visit the Hubitat Community <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Reminder Search</a>.
 
 ## Google API Setup
 1. Login to the Google Cloud Console: https://console.cloud.google.com
