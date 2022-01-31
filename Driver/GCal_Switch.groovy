@@ -1,4 +1,4 @@
-def driverVersion() { return "2.5.3" }
+def driverVersion() { return "3.1.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -23,13 +23,19 @@ metadata {
         capability "Switch"
         
         attribute "lastUpdated", "string"
+        
+        //Calendar
         attribute "eventTitle", "string"
         attribute "eventLocation", "string"
         attribute "eventStartTime", "string"
         attribute "eventEndTime", "string"
         attribute "eventAllDay", "bool"
         
-        command "clearEventCache"
+        //Task and Reminder
+        attribute "taskTitle", "string"
+        attribute "taskID", "string"
+        attribute "taskDueDate", "string"
+        
 	}
     
     preferences {
@@ -70,46 +76,59 @@ def poll() {
     logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, currentValue: ${currentValue} AFTER ")
     
     def result = []
-    def syncValue
     result << sendEvent(name: "lastUpdated", value: parent.formatDateTime(nowDateTime), displayed: false)
-    def item = parent.getNextEvents()
-    if (item && item.eventTitle) {
-        logMsg.push("event found, item: ${item}")
+    
+    def syncValue
+    def item = parent.getNextItems()
+    logMsg.push("item: ${item}")
+    if (item) {
+        def itemKeys = item.keySet()
+        def itemFound = false
+        for (int i = 0; i < itemKeys.size(); i++) {
+            def key = itemKeys[i]
+            def value = item[key]
+            
+            if (key == "kind") {
+                state.kind = (value.indexOf("#") > -1) ? value.split("#")[1] : value
+                itemFound = true
+                continue
+            } else if (["scheduleStartTime", "scheduleEndTime"].indexOf(key) > -1) {
+                // Don't process these keys until later
+                itemFound = true
+                continue
+            } else if (key == "switch") {
+                result << sendEvent(name: key, value: (value == "defaultValue") ? defaultValue : toggleValue )
+            } else {
+                result << sendEvent(name: key, value: (value instanceof Date) ? parent.formatDateTime(value) : value )
+            }
+            
+        }
         
-        result << sendEvent(name: "eventTitle", value: item.eventTitle )
-        result << sendEvent(name: "eventLocation", value: item.eventLocation )
-        result << sendEvent(name: "eventAllDay", value: item.eventAllDay )
-        result << sendEvent(name: "eventStartTime", value: parent.formatDateTime(item.eventStartTime) )
-        result << sendEvent(name: "eventEndTime", value: parent.formatDateTime(item.eventEndTime) )
-        
-        logMsg.push("nowDateTime(${nowDateTime}) < item.scheduleStartTime(${item.scheduleStartTime})")
-        if (nowDateTime < item.scheduleStartTime) {
-            scheduleSwitch(toggleValue, item.scheduleStartTime)
-            scheduleSwitch(defaultValue, item.scheduleEndTime)
-            logMsg.push("Scheduling ${toggleValue} at ${item.scheduleStartTime} and ${defaultValue} at ${item.scheduleEndTime}")
-            if (currentValue != defaultValue) {
-                logMsg.push("Turning ${defaultValue} switch")
-                result << sendEvent(name: "switch", value: defaultValue)
-                syncValue = defaultValue
+        if (itemFound) {
+            logMsg.push("event found")
+            def compareValue = toggleValue
+
+            if (item.scheduleStartTime && nowDateTime < item.scheduleStartTime) {
+                scheduleSwitch(toggleValue, item.scheduleStartTime)
+                if (item.scheduleEndTime) {
+                    scheduleSwitch(defaultValue, item.scheduleEndTime)
+                }
+                logMsg.push("Scheduling ${toggleValue} at ${item.scheduleStartTime} and ${defaultValue} at ${item.scheduleEndTime}")
+                compareValue = defaultValue
+            } else if (item.scheduleEndTime) {
+                scheduleSwitch(defaultValue, item.scheduleEndTime)
+                logMsg.push("Scheduling ${defaultValue} at ${item.scheduleEndTime}")
+                compareValue = toggleValue
+            }
+            
+            if (currentValue != compareValue) {
+                logMsg.push("Turning ${compareValue} switch")
+                result << sendEvent(name: "switch", value: compareValue)
+                syncValue = compareValue
             }
         } else {
-            scheduleSwitch(defaultValue, item.scheduleEndTime)
-            logMsg.push("Scheduling ${defaultValue} at ${item.scheduleEndTime}")
-            if (currentValue != toggleValue) {
-                logMsg.push("Turning ${toggleValue} switch")
-                result << sendEvent(name: "switch", value: toggleValue)
-                syncValue = toggleValue
-            }
+            logMsg.push("no events found, turning ${defaultValue} switch")
         }
-    } else {
-        logMsg.push("no events found, turning ${defaultValue} switch")
-        result << sendEvent(name: "eventTitle", value: " ")
-        result << sendEvent(name: "eventLocation", value: " ")
-        result << sendEvent(name: "eventAllDay", value: " ")
-        result << sendEvent(name: "eventStartTime", value: " ")
-        result << sendEvent(name: "eventEndTime", value: " ")
-        result << sendEvent(name: "switch", value: defaultValue)
-        syncValue = defaultValue
     }
     
     if (syncValue) {
@@ -124,11 +143,30 @@ def poll() {
 def on() {
     sendEvent(name: "switch", value: "on")
     syncChildSwitches("on")
+    updateTask("on")
 }
 
 def off() {
     sendEvent(name: "switch", value: "off")
     syncChildSwitches("off")
+    updateTask("off")
+}
+
+def updateTask(value) {
+    if (state.kind != "task" && state.kind != "reminder") {
+        return
+    }
+    
+    def taskID = device.currentValue("taskID")
+    if (taskID != "" && determineSwitch(true) != value) {
+        if (state.kind == "task" && parent.completeTask(taskID)) {
+            poll()
+        } else if (state.kind == "reminder" && parent.completeReminder(taskID)) {
+            poll()
+        } else {
+            log.error "task could not be completed"
+        }
+    }
 }
 
 def determineSwitch(hasCurrentEvent) {
@@ -157,6 +195,11 @@ def determineSwitch(hasCurrentEvent) {
 
 def scheduleSwitch(type, eventTime) {
     logDebug("scheduleSwitch - scheduling switch ${type} at ${eventTime}")
+    
+    if (eventTime == null) {
+        return
+    }
+    
     if (type == "on") {
         runOnce(eventTime, scheduleOn)
     } else {
@@ -172,10 +215,6 @@ def scheduleOn() {
 def scheduleOff() {
     logDebug("scheduleOff - turning off switch}")
     off()
-}
-
-def clearEventCache() {
-    parent.clearEventCache()
 }
 
 def syncChildSwitches(value) {
