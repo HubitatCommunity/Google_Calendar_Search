@@ -1,4 +1,4 @@
-def appVersion() { return "3.1.0" }
+def appVersion() { return "3.1.1" }
 /**
  *  GTask Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GTask_Search_Trigger
@@ -52,6 +52,13 @@ def mainPage() {
                 paragraph "Last Refreshed:\n${state.refreshed}", width: 4
             }
             input name: "refreshButton", type: "button", title: "Refresh", width: 4, submitOnChange: true
+        }
+        
+        section(){
+            def nextItemDescription = getNextItemDescription()
+            if (nextItemDescription) {
+                paragraph "${nextItemDescription}"
+            }
         }
 
         section("${parent.getFormat("box", "Search Preferences")}") {
@@ -233,8 +240,42 @@ def getNotificationMsgDescription(searchType) {
     def answer
     if (searchType == "Calendar Event") {
         answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
+        if (settings.setOffset) {
+            answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%"
+        }
     } else {
         answer = "Use %taskTitle% to include task title and %taskDueDate% to include task due date."
+        if (settings.setOffset) {
+            answer += " Offset values can be be added by using %scheduleStartTime%"
+        }
+    }
+    
+    return answer
+}
+
+def getNextItemDescription() {    
+    def answer
+    if (state.item) {
+        def itemTitle = (state.item.eventTitle) ? state.item.eventTitle : state.item.taskTitle
+        if (itemTitle != " ") {
+            def item = state.item
+            def searchType = (settings.searchType) ? settings.searchType : "Item"
+            def itemTime
+            if (searchType == "Calendar Event") {
+                itemTime = "<b>Start Time</b>: ${formatDateTime(item.eventStartTime)}"
+                itemTime += (item.eventStartTime != item.scheduleStartTime) ? " (<b>Start Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
+                itemTime += ", "
+                itemTime += "<b>End Time</b>: ${formatDateTime(item.eventEndTime)}"
+                itemTime += (item.eventEndTime != item.scheduleEndTime) ? " (<b>End Offset</b>: ${formatDateTime(item.scheduleEndTime)}) " : " "
+                itemTime += "\n<b>Location</b>: ${item.eventLocation}, <b>Event All Day</b>: ${item.eventAllDay}"
+            } else {
+                itemTime = "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
+                itemTime += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
+            }
+            
+            answer = "<b>Next ${searchType}</b>: ${itemTitle}"
+            answer += "\n${itemTime}"
+        }
     }
     
     return answer
@@ -648,13 +689,19 @@ def composeNotification(msg) {
             def value
             switch (match) {
                 case "eventStartTime":
-                    value = formatDateTime(atomicState.item["scheduleStartTime"])
+                    value = formatDateTime(atomicState.item["eventStartTime"])
                     break
                 case "eventEndTime":
-                    value = formatDateTime(atomicState.item["scheduleEndTime"])
+                    value = formatDateTime(atomicState.item["eventEndTime"])
                     break
                 case "taskDueDate":
+                    value = formatDateTime(atomicState.item["taskDueDate"])
+                    break
+                case "scheduleStartTime":
                     value = formatDateTime(atomicState.item["scheduleStartTime"])
+                    break
+                case "scheduleEndTime":
+                    value = formatDateTime(atomicState.item["scheduleEndTime"])
                     break
                 default:
                     value = atomicState.item[match]
