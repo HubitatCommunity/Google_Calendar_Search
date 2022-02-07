@@ -1,7 +1,7 @@
-def appVersion() { return "3.1.1" }
+def appVersion() { return "3.1.2" }
 /**
- *  GTask Search Trigger Child Application
- *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GTask_Search_Trigger
+ *  GCal Search Trigger Child Application
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
  *
  *  Credits:
  *  Originally posted on the SmartThings Community in 2017:https://community.smartthings.com/t/updated-3-27-18-gcal-search/80042
@@ -26,11 +26,11 @@ definition(
     name: "GCal Search Trigger",
     namespace: "HubitatCommunity",
     author: "Mike Nestor & Anthony Pastor, cometfish, ritchierich",
-    description: "Integrates Hubitat with Google Tasks to toggle virtual switch.",
+    description: "Integrates Hubitat with Google Calendar, Tasks, and Reminders.",
     category: "Convenience",
     parent: "HubitatCommunity:GCal Search",
     documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
-    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GTask_Search_Trigger",
+    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger",
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
@@ -214,6 +214,10 @@ def mainPage() {
                     }
                     def currentRules = RMUtils.getRuleList('5.0')
                     input "currentRule", "enum", title: "Select which rules to run", options: currentRules, multiple: true
+                    if ( settings.searchType == "Calendar Event" ) {
+                        paragraph "${parent.getFormat("text", "<u>Set Rule Machine Private Boolean</u>: Rule actions will be invoked at the event start and event end.  If you wish to differentiate between the two times, set this setting to true and the Rule Private Boolean will be set to True at the event start and False at the event end.  Then build your rule conditions around these values to have a different flow.")}"
+                        input "updateRuleBoolean", "bool", title: "Set Rule Machine Private Boolean?", defaultValue: false
+                    }
                 }
                 paragraph "${parent.getFormat("line")}"
             }
@@ -486,8 +490,8 @@ def getNextEvents() {
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    atomicState.item = item
     runAdditionalActions(item)
+    atomicState.item = item
     return item
 }
 
@@ -539,8 +543,8 @@ def getNextTasks() {
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    atomicState.item = item
     runAdditionalActions(item)
+    atomicState.item = item
     return item
 }
 
@@ -609,8 +613,8 @@ def getNextReminders() {
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    atomicState.item = item
     runAdditionalActions(item)
+    atomicState.item = item
     return item
 }
 
@@ -627,39 +631,45 @@ def completeReminder(taskID) {
 
 def runAdditionalActions(item) {
     def logMsg = ["runAdditionalActions - item: ${item}"]
-    if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
-        logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
+    def itemSame = compareItem(item)
+    if (itemSame == true) {
+        logMsg.push("itemSame: ${itemSame}, skipping additional actions")
     } else {
-        unschedule(triggerStartNotification)
-        unschedule(triggerEndNotification)
+        if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
+            logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
+        } else {
+            atomicState.item = item
+            unschedule(triggerStartNotification)
+            unschedule(triggerEndNotification)
 
-        if (item.scheduleStartTime != null && settings.notificationStartMsg != null) {
-            def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-            logMsg.push("scheduling start notification at ${scheduleStartTime}")
-            runOnce(scheduleStartTime, triggerStartNotification)
+            if (item.scheduleStartTime != null && settings.notificationStartMsg != null) {
+                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                logMsg.push("scheduling start notification at ${scheduleStartTime}")
+                runOnce(scheduleStartTime, triggerStartNotification)
+            }
+
+            if (item.scheduleEndTime != null && settings.notificationEndMsg != null && searchType == "Calendar Event") {
+                logMsg.push("scheduling end notification at ${item.scheduleEndTime}")
+                runOnce(item.scheduleEndTime, triggerEndNotification)
+            }
         }
 
-        if (item.scheduleEndTime != null && settings.notificationEndMsg != null && searchType == "Calendar Event") {
-            logMsg.push("scheduling end notification at ${item.scheduleEndTime}")
-            runOnce(item.scheduleEndTime, triggerEndNotification)
-        }
-    }
+        if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
+            logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
+        } else {
+            unschedule(triggerStartRule)
+            unschedule(triggerEndRule)
 
-    if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
-        logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
-    } else {
-        unschedule(triggerStartRule)
-        unschedule(triggerEndRule)
+            if (item.scheduleStartTime != null) {
+                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                logMsg.push("scheduling start rule actions at ${scheduleStartTime}")
+                runOnce(scheduleStartTime, triggerStartRule)
+            }
 
-        if (item.scheduleStartTime != null) {
-            def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-            logMsg.push("scheduling start rule actions at ${scheduleStartTime}")
-            runOnce(scheduleStartTime, triggerStartRule)
-        }
-
-        if (item.scheduleEndTime != null && searchType == "Calendar Event") {
-            logMsg.push("scheduling end rule actions at ${item.scheduleEndTime}")
-            runOnce(item.scheduleEndTime, triggerEndRule)
+            if (item.scheduleEndTime != null && searchType == "Calendar Event") {
+                logMsg.push("scheduling end rule actions at ${item.scheduleEndTime}")
+                runOnce(item.scheduleEndTime, triggerEndRule)
+            }
         }
     }
     logDebug("${logMsg}")
@@ -717,26 +727,56 @@ def composeNotification(msg) {
 }
 
 def triggerStartRule() {
-    if (settings.legacyRule) {
-        RMUtils.sendAction(settings.legacyRule, "runRuleAct", app.label)
+    if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
+        runRMAPI("setRuleBooleanTrue")
     }
-    
-    if (settings.currentRule) {
-        RMUtils.sendAction(settings.currentRule, "runRuleAct", app.label, "5.0")
-    }
+    runRMAPI("runRuleAct")
 }
 
 def triggerEndRule() {
+    if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
+        runRMAPI("setRuleBooleanFalse")
+    }
+    runRMAPI("runRuleAct")
+}
+
+def runRMAPI(action) {
     if (settings.legacyRule) {
-        RMUtils.sendAction(settings.legacyRule, "runRuleAct", app.label)
+        RMUtils.sendAction(settings.legacyRule, action, app.label)
     }
     
     if (settings.currentRule) {
-        RMUtils.sendAction(settings.currentRule, "runRuleAct", app.label, "5.0")
+        RMUtils.sendAction(settings.currentRule, action, app.label, "5.0")
     }
 }
 
+def compareItem(item) {
+    def answer = true
+    def previousItem = atomicState.item
+    def itemKeys = item.keySet()
+    for (int i = 0; i < itemKeys.size(); i++) {
+        def key = itemKeys[i]
+        def newValue = item[key]
+        def oldValue = previousItem[key]
+        if (newValue instanceof Date) {
+            newValue = formatDateTime(newValue)
+            oldValue = formatDateTime(oldValue)
+        }
+        
+        if (newValue != oldValue) {
+            answer = false
+            break
+        }
+    }
+    
+    return answer
+}
+
 def formatDateTime(dateTime) {
+    if (dateTime == null || dateTime == " ") {
+        return
+    }
+    
     def defaultDateFormat = "yyyy-MM-dd HH:mm:ss"
     def dateTimeFormat, sdf
     if (settings.dateFormat != null && settings.dateFormat != "Other") {
