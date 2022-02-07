@@ -1,4 +1,4 @@
-def appVersion() { return "3.1.1" }
+def appVersion() { return "3.1.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -32,7 +32,7 @@ definition(
     name: "GCal Search",
     namespace: "HubitatCommunity",
     author: "Mike Nestor & Anthony Pastor, cometfish, ritchierich",
-    description: "Integrates Hubitat with Google Calendar events to toggle virtual switch.",
+    description: "Integrates Hubitat with Google Calendar, Tasks, and Reminders.",
     category: "Convenience",
     documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
     importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
