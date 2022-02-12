@@ -1,4 +1,4 @@
-def appVersion() { return "3.1.2" }
+def appVersion() { return "3.2.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -32,7 +32,7 @@ definition(
     name: "GCal Search",
     namespace: "HubitatCommunity",
     author: "Mike Nestor & Anthony Pastor, cometfish, ritchierich",
-    description: "Integrates Hubitat with Google Calendar, Tasks, and Reminders.",
+    description: "Integrates Hubitat with Google Calendar events to toggle virtual switch.",
     category: "Convenience",
     documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
     importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy",
@@ -71,6 +71,7 @@ def mainPage() {
             paragraph "${getFormat("line")}"
         }
         section("${getFormat("box", "Options")}") {
+            input name: "appName", type: "text", title: "Name this parent app", required: true, defaultValue: "GCal Search", submitOnChange: true
             input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
             href "utilitiesPage", title: "Utilities", description: "Tap to access utilities"
             paragraph "${getFormat("line")}"
@@ -84,30 +85,53 @@ def mainPage() {
 def authenticationPage() {
     dynamicPage(name: "authenticationPage", uninstall: false, nextPage: "mainPage") {
         section("${getFormat("box", "Google Authentication")}") {
-            def isAuthorized = authTokenValid("authenticationPage")
-            if (!isAuthorized && !atomicState.authToken) {
-                paragraph "${getFormat("text", "Enter your Google API credentials below.  Instructions to setup these credentials can be found in <a href='https://github.com/HubitatCommunity/Google_Calendar_Search' target='_blank'>HubitatCommunity GitHub</a>.")}"
-                input "gaClientID", "text", title: "Google API Client ID", required: true, submitOnChange: true
-                input "gaClientSecret", "text", title: "Google API Client Secret", required: true, submitOnChange: true
-            } else if (!isAuthorized) {
-                paragraph "${getFormat("warning", "Authentication Problem! Please click Reset Google Authentication and try the setup again.")}"
-            } else {
-                paragraph "${getFormat("text", "<strong>Authentication process complete! Click Next to continue setup.</strong>")}"
-            }
-            if (gaClientID && gaClientSecret) {
-                if (!atomicState.authToken) {
-                    paragraph "${authenticationInstructions(false)}"
-                    href url: getOAuthInitUrl(), style: "external", required: true, title: "Authenticate GCal Search", description: "Tap to start the authentication process"
+            if (oauthEnabled()) {
+                def isAuthorized = authTokenValid("authenticationPage")
+                // Make sure no leading or trailing spaces on gaClientID and gaClientSecret
+                if (settings.gaClientID && settings.gaClientID != settings.gaClientID.trim()) {
+                    app.updateSetting("gaClientID",[type: "text", value: settings.gaClientID.trim()])
                 }
-                paragraph "${getFormat("text", "At any time click the button below to restart the authentication process.")}"
-                href "authenticationReset", title: "Reset Google Authentication", description: "Tap to reset Google API Authentication and start over"
-                paragraph "${getFormat("text", "Use the browser back button or click Next to exit.")}"
+                if (settings.gaClientSecret && settings.gaClientSecret != settings.gaClientSecret.trim()) {
+                    app.updateSetting("gaClientSecret",[type: "text", value: settings.gaClientSecret.trim()])
+                }
+                if (!atomicState.authToken && !isAuthorized) {
+                    paragraph "${getFormat("text", "Enter your Google API credentials below.  Instructions to setup these credentials can be found in <a href='https://github.com/HubitatCommunity/Google_Calendar_Search' target='_blank'>HubitatCommunity GitHub</a>.")}"
+                    input "gaClientID", "text", title: "Google API Client ID", required: true, submitOnChange: true
+                    input "gaClientSecret", "text", title: "Google API Client Secret", required: true, submitOnChange: true
+                } else if (!isAuthorized) {
+                    paragraph "${getFormat("warning", "Authentication Problem! Please click Reset Google Authentication and try the setup again.")}"
+                } else {
+                    paragraph "${getFormat("text", "<strong>Authentication process complete! Click Next to continue setup.</strong>")}"
+                }
+                if (gaClientID && gaClientSecret) {
+                    if (!atomicState.authToken) {
+                        paragraph "${authenticationInstructions()}"
+                        href url: getOAuthInitUrl(), style: "external", required: true, title: "Authenticate GCal Search", description: "Tap to start the authentication process"
+                    }
+                    paragraph "${getFormat("text", "At any time click the button below to restart the authentication process.")}"
+                    href "authenticationReset", title: "Reset Google Authentication", description: "Tap to reset Google API Authentication and start over"
+                    paragraph "${getFormat("text", "Use the browser back button or click Next to exit.")}"
+                }
+            } else {
+                paragraph "${getFormat("warning", "<strong>OAuth must be enabled on the GCal Search app.</strong>")}"
+                paragraph "${oAuthInstructions()}"
             }
         }
     }
 }
 
-def authenticationInstructions(step1Complete) {
+def oAuthInstructions() {
+    def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Steps to enable OAuth:</strong></span></p>"
+    text += "<ol style='list-style-position: inside;font-size:15px;'>"
+    text += "<li>Please <a href='http://${location.hub.localIP}/app/list' target='_blank'><u>click this link</u></a> to open another browser tab to enable this setting in Apps Code.</li>"
+    text += "<ul><li> Instructions to enable OAuth can be found in the 'Enabling OAuth' Section of the <a href='https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps' target='_blank'><u>How to Install Custom Apps</u></a> article.</li></ul>"
+    text += "<li>After completing Step 1 is <a href='authenticationPage'><u>refresh this page</u></a> (browser refresh) to continue setup.</li>"
+    text += "</ol>"
+    
+    return text
+}
+
+def authenticationInstructions() {
     def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Steps required to complete the Google authentication process:</strong></span></p>"
     text += "<ul style='list-style-position: inside;font-size:15px;'>"
     text += "<li>Tap the 'Authenticate GCal Search' button below to start the authentication process.</li>"
@@ -169,14 +193,19 @@ def updated() {
 }
 
 def initialize() {
+    log.debug "initialize()"
+    // Make sure no leading or trailing spaces on gaClientID and gaClientSecret
+    if (settings.gaClientID && settings.gaClientID != settings.gaClientID.trim()) {
+        app.updateSetting("gaClientID",[type: "text", value: settings.gaClientID.trim()])
+    }
+    if (settings.gaClientSecret && settings.gaClientSecret != settings.gaClientSecret.trim()) {
+        app.updateSetting("gaClientSecret",[type: "text", value: settings.gaClientSecret.trim()])
+    }
+    
+    updateAppLabel()
     upgradeSettings()
     state.version = appVersion()
-    if (!state.accessToken) {
-        def accessToken = createAccessToken()
-		state.accessToken = accessToken
-        state.oauthInitState = "${getHubUID()}/apps/${app.id}/callback?access_token=${accessToken}"
-        logDebug("Access token is : ${state.accessToken}, oauthInitState: ${state.oauthInitState}")
-	}
+    
 }
 
 def uninstalled() {
@@ -185,6 +214,33 @@ def uninstalled() {
 
 def childUninstalled() { 
 
+}
+
+def oauthEnabled() {
+    def answer = false
+    if (state.accessToken) {
+        answer = true
+    } else {
+        def accessToken
+        try {
+            accessToken = createAccessToken()
+        } catch (e) {
+            if (e.toString().indexOf("OAuth is not enabled for this App") > -1) {
+                log.error "OAuth must be enabled on the GCal Search app.  Please navigate to Apps Code and enable OAuth.  Instructions can be found in the Hubitat Documentation: https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps"
+            } else {
+                log.error "${e}"
+            }
+            answer = false
+        }
+        if (accessToken) {
+            state.accessToken = accessToken
+            state.oauthInitState = "${getHubUID()}/apps/${app.id}/callback?access_token=${accessToken}"
+            answer = true
+            logDebug("Access token is : ${state.accessToken}, oauthInitState: ${state.oauthInitState}")
+        }
+    }
+    
+    return answer
 }
 
 /* ============================= Start Google APIs ============================= */
@@ -232,19 +288,23 @@ def callback() {
 			body: tokenParams
 		]
         logMsg.push("params: ${params}")
+        
+        try {
+            httpPost(params) { resp ->
+                logMsg.push("Resp Status: ${resp.status}, Data: ${resp.data}")
+                def slurper = new JsonSlurper()
 
-		httpPost(params) { resp ->
-            logMsg.push("Resp Status: ${resp.status}, Data: ${resp.data}")
-			def slurper = new JsonSlurper()
-
-			resp.data.each { key, value ->
-				def data = slurper.parseText(key)
-				state.refreshToken = data.refresh_token
-				state.authToken = data.access_token
-				state.tokenExpires = now() + (data.expires_in * 1000)
-				state.scopesAuthorized = data.scope
-			}
-		}
+                resp.data.each { key, value ->
+                    def data = slurper.parseText(key)
+                    state.refreshToken = data.refresh_token
+                    state.authToken = data.access_token
+                    state.tokenExpires = now() + (data.expires_in * 1000)
+                    state.scopesAuthorized = data.scope
+                }
+            }
+        } catch (e) {
+            log.error "callback - ${e}, ${e.getResponse().getData()}"
+        }
 
 		// Handle success and failure here, and render stuff accordingly
         def message = ""
@@ -574,7 +634,13 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             eventDetails.kind = event.kind
             //eventDetails.timeZone = events.timeZone
             eventDetails.eventTitle = event.summary.trim()
-            eventDetails.eventLocation = event?.location ? event.location : "none"
+            eventDetails.eventLocation = event.location ? event.location : "none"
+            eventDetails.eventDescription = event.description ? event.description : "none"
+            //Description is an HTML field, remove html tags, special characters, and spaces
+            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
+            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\<.*?\\>", " ")
+            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\&.*?\\;", " ")
+            eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll(" +", " ")
 
             def eventAllDay
             def eventStartTime
@@ -808,157 +874,7 @@ def completeReminder(taskID) {
     return reminderCompleted
 }
 
-/*
-def completeReminder2(taskID) {
-    //taskID = "1723034518730493062"
-    def logMsg = ["completeReminder - "]
-    def bodyParams = [
-    '1': ['4': "WRP / /WebCalendar/calendar_190319.03_p1"],
-        '2': ['1': taskID],
-        '4': ['1': ['1': taskID],
-              '8': 1],
-        '7': ['1': [1, 10, 3]]
-    ]
-    
-    def output = new JsonOutput()
-    bodyParams = output.toJson(bodyParams)
-    
-    logMsg.push("bodyParams: ${bodyParams}")
-    
-    def path = "/v1internalOP/reminders/update"
-    def eventListParams = [
-        uri: "https://reminders-pa.clients6.google.com",
-        path: path,
-        headers: ["Content-Type": "application/json+protobuf", "Authorization": "Bearer ${atomicState.authToken}"],
-        body: bodyParams
-    ]
-    logMsg.push("eventListParams: ${eventListParams}")
-
-    try {
-        httpPost(eventListParams) {
-            resp ->
-            log.debug "Resp Status: ${resp.status}, resp: ${resp}, resp.data: ${resp.data}"
-        }
-    } catch (e) {
-        log.error "completeReminder - error: ${path}, ${e}, ${e.getResponse().getData()}"
-    }
-                  
-    logDebug("${logMsg}")
-}
-
-def getReminders() {
-    def logMsg = ["getReminders - "]
-    def bodyParams = [
-        "5": 1,
-        "6": 20
-    ]
-    def output = new JsonOutput()
-    bodyParams = output.toJson(bodyParams)
-    
-    logMsg.push("bodyParams: ${bodyParams}")
-    
-    def path = "/v1internalOP/reminders/list"
-    def eventListParams = [
-        uri: "https://reminders-pa.clients6.google.com",
-        path: path,
-        headers: ["Content-Type": "application/json", "Authorization": "Bearer ${atomicState.authToken}"],
-        //body: bodyParams
-    ]
-    logMsg.push("eventListParams: ${eventListParams}")
-
-    def evs = []
-    try {
-        def queryResponse = []            
-        httpPost(eventListParams) {
-            resp ->
-            log.debug "Resp Status: ${resp.status}, resp.data: ${resp.data}"
-        }
-    } catch (e) {
-        log.error "getReminders - error: ${path}, ${e}, ${e.getResponse().getData()}"
-        if (refreshAuthToken()) {
-            return getNextEvents(watchCalendar, search)
-        } else {
-            log.error "getReminders - fatality, ${e.getResponse().getData()}"
-        }
-    }
-                  
-    //logMsg.push("events: ${evs}")
-    logDebug("${logMsg}")
-}
-*/
-
 /* ============================= End Google Reminder ============================= */
-
-def matchItem(items, caseSensitive, searchTerms, searchField) {
-    def logMsg = ["matchItem - caseSensitive: ${caseSensitive}, searchTerms: ${searchTerms}, searchField: ${searchField}, items: ${items}"]
-    def tempItems = []
-    searchTerms = searchTerms.toString()
-    if (caseSensitive == false) {
-        searchTerms = searchTerms.toLowerCase()
-    }
-    searchTerms = searchTerms.split(",")
-    for (int s = 0; s < searchTerms.size(); s++) {
-        def searchTerm = searchTerms[s].trim()
-        logMsg.push("searchTerm: '${searchTerm}'")
-
-        for (int i = 0; i < items.size(); i++) {
-            tempItem = items[i]
-            def itemMatch = false
-            def itemSearchFieldValue = items[i][searchField]
-            if (caseSensitive == false) {
-                itemSearchFieldValue = itemSearchFieldValue.toLowerCase()
-            }
-            logMsg.push("itemSearchFieldValue: ${itemSearchFieldValue}")
-
-            def ignoreMatch = false
-            if (searchTerm.indexOf("-") > -1) {
-                def pattern = ~/-[\w]+/
-                def ignoreWords = (searchTerm =~ pattern).findAll()
-                for (int iG = 0; iG < ignoreWords.size(); iG++) {
-                    def ignoreWord = ignoreWords[iG].substring(1).trim()
-                    if (itemSearchFieldValue.indexOf(ignoreWord) > -1) {
-                        logMsg.push("No Match: ignore word '${ignoreWord}' found")
-                        ignoreMatch = true
-                        break
-                    } else {
-                        //Remove word from searchTerm
-                        searchTerm = searchTerm.replace(ignoreWords[iG], "").trim()
-                    }
-                }
-                logMsg.push("searchTerm trimmed to'${searchTerm}'")
-            }
-
-            if (ignoreMatch == false) {
-                if (searchTerm == "*") {
-                    itemMatch = true
-                } else if (searchTerm.startsWith("=") && itemSearchFieldValue == searchTerm.substring(1)) {
-                    itemMatch = true
-                } else if (searchTerm.indexOf("*") > -1) {
-                    def searchList = searchTerm.toString().split("\\*")
-                    for (int sL = 0; sL < searchList.size(); sL++) {
-                        def searchItem = searchList[sL].trim()
-                        if (itemSearchFieldValue.indexOf(searchItem) > -1) {
-                            itemMatch = true
-                        } else {
-                            itemMatch = false
-                            break
-                        }
-                    }
-                } else if (itemSearchFieldValue.startsWith(searchTerm)) {
-                    itemMatch = true
-                }
-            }
-
-            logMsg.push("itemMatch: ${itemMatch}")
-            if (itemMatch) {
-                tempItems.push(tempItem)
-            }
-        }
-    }
-    
-    logDebug("${logMsg}")
-    return tempItems
-}
 
 def displayMessageAsHtml(message) {
     def html = """
@@ -1104,6 +1020,11 @@ def connectionStatus(message, redirectUrl = null) {
         </html>
 	"""
 	render contentType: 'text/html', data: html
+}
+
+def updateAppLabel() {
+    String appName = settings.appName
+    app.updateLabel(appName)
 }
 
 private logDebug(msg) {
