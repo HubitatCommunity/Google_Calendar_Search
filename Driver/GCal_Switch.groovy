@@ -1,4 +1,4 @@
-def driverVersion() { return "3.1.2" }
+def driverVersion() { return "3.2.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -41,6 +41,7 @@ metadata {
     preferences {
 		input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, options:["on","off"]
+        input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
     }
 }
 
@@ -142,12 +143,14 @@ def poll() {
 
 def on() {
     sendEvent(name: "switch", value: "on")
+    logInfo(device.name + " is on")
     syncChildSwitches("on")
     updateTask("on")
 }
 
 def off() {
     sendEvent(name: "switch", value: "off")
+    logInfo(device.name + " is off")
     syncChildSwitches("off")
     updateTask("off")
 }
@@ -159,9 +162,7 @@ def updateTask(value) {
     
     def taskID = device.currentValue("taskID")
     if (taskID != "" && determineSwitch(true) != value) {
-        if (state.kind == "task" && parent.completeTask(taskID)) {
-            poll()
-        } else if (state.kind == "reminder" && parent.completeReminder(taskID)) {
+        if (parent.completeItem()) {
             poll()
         } else {
             log.error "task could not be completed"
@@ -219,6 +220,12 @@ def scheduleOff() {
 
 def syncChildSwitches(value) {
     parent.syncChildSwitches(value)
+}
+
+private logInfo(msg) {
+    if (settings.txtEnable == true) {
+        log.info "$msg"
+    }
 }
 
 private logDebug(msg) {
