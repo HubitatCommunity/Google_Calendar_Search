@@ -124,6 +124,7 @@ def poll() {
             
             if (currentValue != compareValue) {
                 logMsg.push("Turning ${compareValue} switch")
+                logInfo(device.name + " is " + compareValue)
                 result << sendEvent(name: "switch", value: compareValue)
                 syncValue = compareValue
             }
