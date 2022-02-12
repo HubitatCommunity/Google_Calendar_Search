@@ -1,7 +1,7 @@
-def appVersion() { return "3.1.2" }
+def appVersion() { return "3.2.0" }
 /**
  *  GCal Search Trigger Child Application
- *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
  *
  *  Credits:
  *  Originally posted on the SmartThings Community in 2017:https://community.smartthings.com/t/updated-3-27-18-gcal-search/80042
@@ -30,7 +30,7 @@ definition(
     category: "Convenience",
     parent: "HubitatCommunity:GCal Search",
     documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
-    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger",
+    importUrl: "https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy",
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
@@ -68,7 +68,7 @@ def mainPage() {
             } else {
                 def scopesAuthorized = parent.getScopesAuthorized()
                 if (scopesAuthorized == null) {
-                    log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade."
+                    log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade and click Done."
                 }
                 def watchListOptions
                 input name: "searchType", title:"Do you want to search Google Calendar Event, Task or Reminder?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
@@ -187,7 +187,7 @@ def mainPage() {
                 paragraph "${parent.getFormat("line")}"
             }
             section("${parent.getFormat("box", "Additional Action Preferences")}") {
-                paragraph "${parent.getFormat("text", "Notifications can be sent/spoken and Rule Machine rules can be evaluated based on an item matching search criteria.")}"
+                paragraph "${parent.getFormat("text", "Notifications can be sent/spoken based on an item matching search criteria.")}"
                 input "sendNotification", "bool", title: "Send notifications?", defaultValue: false, submitOnChange: true
                 if ( settings.sendNotification == true ) {
                     def startMsg, endMsg
@@ -206,6 +206,8 @@ def mainPage() {
                     input "speechDevices", "capability.speechSynthesis", title: "Speak notification on these device(s)?", required: false, multiple: true
                 }
                 paragraph "${parent.getFormat("line")}"
+                
+                paragraph "${parent.getFormat("text", "Rule Machine rules can be evaluated based on an item matching search criteria.")}"
                 input "runRuleActions", "bool", title: "Run Rule Machine actions?", defaultValue: false, submitOnChange: true
                 if ( settings.runRuleActions == true ) {
                     def legacyRules = RMUtils.getRuleList()
@@ -220,6 +222,26 @@ def mainPage() {
                     }
                 }
                 paragraph "${parent.getFormat("line")}"
+                
+                def controlSwitchesDescription = getControlSwitchesDescription(settings.searchType)
+                paragraph "${parent.getFormat("text", controlSwitchesDescription.description)}"
+                input "controlSwitches", "bool", title: "${controlSwitchesDescription.title}", defaultValue: false, submitOnChange: true
+                if ( settings.controlSwitches == true ) {
+                    paragraph "${parent.getFormat("text", controlSwitchesDescription.instructions)}"
+                    input name: "itemField", type: "enum", title: "${settings.searchType} field to use for swith instructions", required: true, defaultValue: "title", options:controlSwitchesDescription.options, width: 4
+                    input name: "offTranslation", type: "text", title: "Translation for Off", required: true, defaultValue: "off", width: 4
+                    input name: "onTranslation", type: "text", title: "Translation for On", required: true, defaultValue: "on", width: 4
+                    input name: "ignoreWords", type: "text", title: "Verbs within text to ignore (separate multiple words by comma)", required: false, defaultValue: "turn", width: 6
+                    input name: "conjunctionWords", type: "text", title: "Conjunction words for multiple switches (separate multiple words by comma)", required: false, defaultValue: "and", width: 6
+                    input "controlSwitchList", "capability.switch", title: "Control These Switches", multiple: true, required: true
+                }
+                paragraph "${parent.getFormat("line")}"
+                
+                if ( settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true ) {
+                    paragraph "${parent.getFormat("text", "Toggle 'Enable descriptionText logging' below if you want this app to create an event log entry when the additional actions are executed with details on that action.")}"
+                    input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
+                    paragraph "${parent.getFormat("line")}"
+                }
             }
         }
         
@@ -245,13 +267,16 @@ def getNotificationMsgDescription(searchType) {
     if (searchType == "Calendar Event") {
         answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
         if (settings.setOffset) {
-            answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%"
+            answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%."
         }
     } else {
         answer = "Use %taskTitle% to include task title and %taskDueDate% to include task due date."
         if (settings.setOffset) {
-            answer += " Offset values can be be added by using %scheduleStartTime%"
+            answer += " Offset values can be be added by using %scheduleStartTime%."
         }
+    }
+    if (settings.controlSwitches == true) {
+        answer += " With 'Control switches from ${searchType.toLowerCase()} details' enabled switches that will be turned on/off can be added by using %onSwitches% and %offSwitches%."
     }
     
     return answer
@@ -264,23 +289,67 @@ def getNextItemDescription() {
         if (itemTitle != " ") {
             def item = state.item
             def searchType = (settings.searchType) ? settings.searchType : "Item"
-            def itemTime
+            def itemDetails = ""
             if (searchType == "Calendar Event") {
-                itemTime = "<b>Start Time</b>: ${formatDateTime(item.eventStartTime)}"
-                itemTime += (item.eventStartTime != item.scheduleStartTime) ? " (<b>Start Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
-                itemTime += ", "
-                itemTime += "<b>End Time</b>: ${formatDateTime(item.eventEndTime)}"
-                itemTime += (item.eventEndTime != item.scheduleEndTime) ? " (<b>End Offset</b>: ${formatDateTime(item.scheduleEndTime)}) " : " "
-                itemTime += "\n<b>Location</b>: ${item.eventLocation}, <b>Event All Day</b>: ${item.eventAllDay}"
+                if (item.eventDescription != null) {
+                    itemDetails += "<b>Description</b>: ${item.eventDescription}\n"
+                }
+                itemDetails += "<b>Start Time</b>: ${formatDateTime(item.eventStartTime)}"
+                itemDetails += (item.eventStartTime != item.scheduleStartTime) ? " (<b>Start Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
+                itemDetails += ", "
+                itemDetails += "<b>End Time</b>: ${formatDateTime(item.eventEndTime)}"
+                itemDetails += (item.eventEndTime != item.scheduleEndTime) ? " (<b>End Offset</b>: ${formatDateTime(item.scheduleEndTime)}) " : " "
+                itemDetails += "\n<b>Location</b>: ${item.eventLocation}, <b>Event All Day</b>: ${item.eventAllDay}"
             } else {
-                itemTime = "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
-                itemTime += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
+                itemDetails += "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
+                itemDetails += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
+            }
+            
+            if (state.matchSwitches && !state.matchSwitches.isEmpty()) {
+                if (state.matchSwitches.on) {
+                    itemDetails += "\n<b>Switches to turn on</b>: "
+                    itemDetails += gatherSwitchNames("on")
+                }
+                if (state.matchSwitches.off) {
+                    itemDetails += "\n<b>Switches to turn off</b>: "
+                    itemDetails += gatherSwitchNames("off")
+                }
             }
             
             answer = "<b>Next ${searchType}</b>: ${itemTitle}"
-            answer += "\n${itemTime}"
+            answer += "\n${itemDetails}"
         }
     }
+    
+    return answer
+}
+
+def getControlSwitchesDescription(searchType) {
+    def answer = [
+        title: "Control switches from ${searchType.toLowerCase()} details?",
+        options: ["title"]
+    ]
+    answer.description = "Switches can be toggled dynamically based on text/instructions found within the ${searchType.toLowerCase()}. For confirmation purposes, the matched switches will appear at the top of this app above the Search Preferences section when a maching ${searchType.toLowerCase()} is found. "
+    answer.description += "The same search matching options described above in the Search Preferences section are available to match switch names. Examples:\n"
+    answer.description += "<ul style='list-style-position: inside;font-size:15px;'>"
+    answer.description += "<li>'Turn off bedroom fan and turn on bedroom overhead lights, bedroom lamps, and bedroom tv' to turn off and on several switches</li>" 
+    answer.description += "<li>'Turn off bedroom*' to turn off all switches that start with bedroom</li>"
+    answer.description += "</ul>"
+    
+    if (searchType == "Calendar Event") {
+        answer.options.push("location")
+        answer.options.push("description")
+    }
+    
+    answer.instructions = "Options Explanation:\n"
+    answer.instructions += "<ul style='list-style-position: inside;font-size:15px;'>"
+    answer.instructions += "<li><u>Reminder field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
+    answer.instructions += "<li><u>Translation for Off</u>: Defaults to the word 'off' but international users may enter their translation for 'off'</li>"
+    answer.instructions += "<li><u>Translation for On</u>: Defaults to the word 'on' but international users may enter their translation for 'on'</li>"
+    answer.instructions += "<li><u>Verbs within text to ignore</u>: Optional: Enter word(s) that might be included within the instructions that you want to ignore during the matching process. In English you might say 'turn on the overhead lights' but the word 'turn' isn't really necessary and should be ignored.</li>"
+    answer.instructions += "<li><u>Conjunction words...</u>: Optional: Words that might be used to separate multiple switches such as 'and' or 'along with'. By default multiple switches can be separated by a comma or semicolon.</li>"
+    answer.instructions += "<li><u>Control These Switches</u>: Choose all switches that you would ever want to control from a ${searchType.toLowerCase()}.  Text within the ${searchType.toLowerCase()} will be matched to the switch name/label set witin the device. Note: apostrophe's will be removed prior to matching since they can be problematic.</li>"
+    answer.instructions += "</ul>"
     
     return answer
 }
@@ -349,6 +418,17 @@ def getNextItems() {
         return getNextReminders()
     } else {
         return getNextEvents()
+    }
+}
+
+def completeItem() {
+    def taskID = state.item.taskID
+	if (taskID && settings.searchType == "Task") {
+        return completeTask(taskID)
+    } else if (taskID && settings.searchType == "Reminder") {
+        return completeReminder(taskID)
+    } else {
+        return false
     }
 }
 
@@ -428,7 +508,7 @@ def getNextEvents() {
         // If Google Matching is disabled, check for match
         if (settings.GoogleMatching == false && items.size() > 0) {
             def eventField = (settings.searchField == "title") ? "eventTitle" : "eventLocation"
-            items = parent.matchItem(items, caseSensitive, search, eventField)
+            items = matchItem(items, caseSensitive, search, eventField)
         }
         
         if (items.size() > 0) {
@@ -484,6 +564,10 @@ def getNextEvents() {
                 item.scheduleEndTime.setTime(tempEndTime)
                 logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
             }
+            // Remove description if it is not used for switch control
+            if (settings.controlSwitches != true || (settings.controlSwitches == true && settings.itemField != "description")) {
+                item.remove("eventDescription")
+            }
         }
     }
     
@@ -491,7 +575,6 @@ def getNextEvents() {
     logDebug("${logMsg}")
     
     runAdditionalActions(item)
-    atomicState.item = item
     return item
 }
 
@@ -515,7 +598,7 @@ def getNextTasks() {
         // Check for search string match
         if (items.size() > 0) {
             def eventField = "taskTitle"
-            items = parent.matchItem(items, caseSensitive, search, eventField)
+            items = matchItem(items, caseSensitive, search, eventField)
         }
         
         if (items.size() > 0) {
@@ -544,7 +627,6 @@ def getNextTasks() {
     logDebug("${logMsg}")
     
     runAdditionalActions(item)
-    atomicState.item = item
     return item
 }
 
@@ -585,7 +667,7 @@ def getNextReminders() {
         // Check for search string match
         if (items.size() > 0) {
             def eventField = "taskTitle"
-            items = parent.matchItem(items, caseSensitive, search, eventField)
+            items = matchItem(items, caseSensitive, search, eventField)
         }
         
         if (items.size() > 0) {
@@ -614,7 +696,6 @@ def getNextReminders() {
     logDebug("${logMsg}")
     
     runAdditionalActions(item)
-    atomicState.item = item
     return item
 }
 
@@ -635,10 +716,23 @@ def runAdditionalActions(item) {
     if (itemSame == true) {
         logMsg.push("itemSame: ${itemSame}, skipping additional actions")
     } else {
+        atomicState.item = item
+        if (settings.controlSwitches != true || settings.controlSwitchList == null) {
+            logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
+        } else {
+            unschedule(triggerSwitchControl)
+
+            if (item.scheduleStartTime != null) {
+                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                logMsg.push("scheduling switch control actions at ${scheduleStartTime}")
+                runOnce(scheduleStartTime, triggerSwitchControl)
+            }
+            atomicState.matchSwitches = gatherControlSwitches(item)
+        }
+    
         if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
             logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
         } else {
-            atomicState.item = item
             unschedule(triggerStartNotification)
             unschedule(triggerEndNotification)
 
@@ -672,7 +766,274 @@ def runAdditionalActions(item) {
             }
         }
     }
+    
     logDebug("${logMsg}")
+}
+
+def gatherControlSwitches(item) {
+    def logMsg = ["gatherControlSwitches - item: ${item}"]
+    def answer = [:]
+    def separators = [",", ";"]
+    def ignoreChars = ["'", "’"]
+    def triggerWords = ["on", "off"]
+    def matchCommands = []
+    def pattern
+    def matchFieldName = settings.itemField
+    def matchFieldValue
+    switch (matchFieldName) {
+        case "location":
+            matchFieldValue = item.eventLocation
+            break
+        case "description":
+            matchFieldValue = item.eventDescription
+            break
+        default:
+            matchFieldValue = (settings.searchType == "Calendar Event") ? item.eventTitle : item.taskTitle
+    }
+    matchFieldValue = matchFieldValue.toString().toLowerCase()
+    logMsg.push("matchFieldValue before: ${matchFieldValue}")
+    
+    //Remove ignore verbs and chars from matchFieldValue
+    def ignoreVerbs = settings.ignoreWords.split(",")
+    for (int i = 0; i < ignoreVerbs.size(); i++) {
+        def ignoreVerb = ignoreVerbs[i].trim()
+        pattern = /\b${ignoreVerb}\b/
+
+        def ignoreWords = (matchFieldValue =~ pattern)
+        if (ignoreWords.find()) {
+            matchFieldValue = matchFieldValue.replaceAll(pattern, "")
+        }
+    }
+    for (int i = 0; i < ignoreChars.size(); i++) {
+        def ignoreChar = ignoreChars[i]
+        matchFieldValue = matchFieldValue.replaceAll(ignoreChar, "")
+    }
+    
+    //Change user defined conjunction words to commas
+    def userConjunctionWords = settings.conjunctionWords.split(",")
+    for (int i = 0; i < userConjunctionWords.size(); i++) {
+        def conjunctionWord = userConjunctionWords[i].trim()
+        pattern = /\b${conjunctionWord}\b/
+
+        def conjunctionWords = (matchFieldValue =~ pattern)
+        if (conjunctionWords.find()) {
+            matchFieldValue = matchFieldValue.replaceAll(pattern, ", ")
+        }
+    }
+    
+    //Change user defined trigger words to on/off
+    def userTriggerWord = (settings.onTranslation) ? settings.onTranslation.trim() : "on"
+    pattern = /\b${userTriggerWord}\b/
+    def userTriggerWords = (matchFieldValue =~ pattern)
+    if (userTriggerWords.find()) {
+        matchFieldValue = matchFieldValue.replaceAll(pattern, "on")
+    }
+    
+    userTriggerWord = (settings.offTranslation) ? settings.offTranslation.trim() : "off"
+    pattern = /\b${userTriggerWord}\b/
+    userTriggerWords = (matchFieldValue =~ pattern)
+    if (userTriggerWords.find()) {
+        matchFieldValue = matchFieldValue.replaceAll(pattern, "off")
+    }
+    
+    matchFieldValue = matchFieldValue.trim()
+    logMsg.push("matchFieldValue after: ${matchFieldValue}")
+    
+    for (int i = 0; i < triggerWords.size(); i++) {
+        def triggerWord = triggerWords[i]
+        pattern = /\b${triggerWord}\b/
+        def triggerMatches = (matchFieldValue =~ pattern)
+        
+        while (triggerMatches.find()) {
+            def commandDetails = [:]
+            commandDetails.index = triggerMatches.start()
+            commandDetails.word = triggerWord
+            matchCommands.push(commandDetails)
+        }
+    }
+    
+    if (matchCommands.size() > 0) {
+        matchCommands.sort{it.index}
+        logMsg.push("matchCommands: ${matchCommands}")
+        
+        def matchSwitchList = [:]
+        for (int m = 0; m < matchCommands.size(); m++) {
+            def matchedCommand = matchCommands[m].word
+            def matchedIndex = matchCommands[m].index
+            def tempMatchFieldValue
+            def nextMatchedCommand = matchCommands[m+1]
+            if (nextMatchedCommand) {
+                tempMatchFieldValue = matchFieldValue.substring(matchedIndex + matchedCommand.length(), nextMatchedCommand.index - nextMatchedCommand.word.length() + 1).trim()
+            } else {
+                tempMatchFieldValue = matchFieldValue.substring(matchedIndex + matchedCommand.length()).trim()
+            }
+            
+            //Separate multiple switches            
+            def tempMatchFieldList = [tempMatchFieldValue]
+            logMsg.push("tempMatchFieldList before separation ${tempMatchFieldList}, matchedCommand: ${matchedCommand}")
+            for (int s = 0; s < separators.size(); s++) {
+                def separator = separators[s]
+                def tempList = tempMatchFieldList
+                for (int i = 0; i < tempMatchFieldList.size(); i++) {
+                    def matchSwitch = tempMatchFieldList[i]
+                    if (matchSwitch.indexOf(separator) > -1) {
+                        tempList.remove(tempList.indexOf(matchSwitch))
+                        tempList.addAll(matchSwitch.split(separator))
+                    }
+                }
+
+                tempMatchFieldList = tempList
+            }
+            
+            if (matchSwitchList[matchedCommand]) {
+                matchSwitchList[matchedCommand].addAll(tempMatchFieldList)
+            } else {
+                matchSwitchList[matchedCommand] = tempMatchFieldList
+            }
+        }
+        logMsg.push("matchSwitchList: ${matchSwitchList}")
+
+        def switchList = []
+        settings.controlSwitchList.each {
+            def switchDetail = [:]
+            switchDetail.id = it.id
+
+            def displayName = it.displayName
+            for (int i = 0; i < ignoreChars.size(); i++) {
+                def ignoreChar = ignoreChars[i]
+                displayName = displayName.replaceAll(ignoreChar, "")
+            }
+            switchDetail.name = displayName
+            switchList.push(switchDetail)
+        }
+        logMsg.push("switchList: ${switchList}")
+
+        if (matchSwitchList.on && matchSwitchList.on.size() > 0) {
+            matchSwitchList.on = matchItem(switchList, false, matchSwitchList.on, "name")
+        }
+
+        if (matchSwitchList.off && matchSwitchList.off.size() > 0) {
+            matchSwitchList.off = matchItem(switchList, false, matchSwitchList.off, "name")
+        }
+        
+        answer = matchSwitchList
+    } else {
+        logMsg.push("no matched commands")
+    }
+    
+    logMsg.push("answer: ${answer}")
+    logDebug("${logMsg}")
+    return answer
+}
+
+def triggerSwitchControl() {
+    def logMsg = ["triggerSwitchControl - "]
+    def logInfoMsg = []
+    if (state.matchSwitches.on) {
+        def onSwitches = []
+        for (int i = 0; i < state.matchSwitches.on.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == state.matchSwitches.on[i].id}
+            logMsg.push("turning on ${device.name}")
+            onSwitches.push(device.name)
+            device?.on()
+        }
+        if (onSwitches.size() > 0) {
+            logInfoMsg.push("turning on: " + onSwitches.join(", "))
+        }
+    }
+    if (state.matchSwitches.off) {
+        def offSwitches = []
+        for (int i = 0; i < state.matchSwitches.off.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == state.matchSwitches.off[i].id}
+            logMsg.push("turning off ${device.name}")
+            offSwitches.push(device.name)
+            device?.off()
+        }
+        if (offSwitches.size() > 0) {
+            logInfoMsg.push("turning off: " + offSwitches.join(", "))
+        }
+    }
+    def itemCompleted = completeItem()
+    if (itemCompleted) {
+        getNextItems()
+        logInfoMsg.push("${settings.searchType.toLowerCase()} completed")
+    }
+    
+    logMsg.push("${settings.searchType} completed: ${itemCompleted}")
+    logDebug("${logMsg}")
+    logInfo("Toggling Switches - " + logInfoMsg.join(", "))
+}
+
+def matchItem(items, caseSensitive, searchTerms, searchField) {
+    def logMsg = ["matchItem - caseSensitive: ${caseSensitive}, searchTerms: ${searchTerms}, searchField: ${searchField}, items: ${items}"]
+    def tempItems = []
+    if (searchTerms instanceof String) {
+        if (caseSensitive == false) {
+            searchTerms = searchTerms.toLowerCase()
+        }
+        searchTerms = searchTerms.split(",")
+    }
+    for (int s = 0; s < searchTerms.size(); s++) {
+        def searchTerm = searchTerms[s].trim()
+        logMsg.push("searchTerm: '${searchTerm}'")
+
+        for (int i = 0; i < items.size(); i++) {
+            tempItem = items[i]
+            def itemMatch = false
+            def itemSearchFieldValue = items[i][searchField]
+            if (caseSensitive == false) {
+                itemSearchFieldValue = itemSearchFieldValue.toLowerCase()
+            }
+            logMsg.push("itemSearchFieldValue: ${itemSearchFieldValue}")
+
+            def ignoreMatch = false
+            if (searchTerm.indexOf("-") > -1) {
+                def pattern = ~/-[\w]+/
+                def ignoreWords = (searchTerm =~ pattern).findAll()
+                for (int iG = 0; iG < ignoreWords.size(); iG++) {
+                    def ignoreWord = ignoreWords[iG].substring(1).trim()
+                    if (itemSearchFieldValue.indexOf(ignoreWord) > -1) {
+                        logMsg.push("No Match: ignore word '${ignoreWord}' found")
+                        ignoreMatch = true
+                        break
+                    } else {
+                        //Remove word from searchTerm
+                        searchTerm = searchTerm.replace(ignoreWords[iG], "").trim()
+                    }
+                }
+                logMsg.push("searchTerm trimmed to'${searchTerm}'")
+            }
+
+            if (ignoreMatch == false) {
+                if (searchTerm == "*") {
+                    itemMatch = true
+                } else if (searchTerm.startsWith("=") && itemSearchFieldValue == searchTerm.substring(1)) {
+                    itemMatch = true
+                } else if (searchTerm.indexOf("*") > -1) {
+                    def searchList = searchTerm.toString().split("\\*")
+                    for (int sL = 0; sL < searchList.size(); sL++) {
+                        def searchItem = searchList[sL].trim()
+                        if (itemSearchFieldValue.indexOf(searchItem) > -1) {
+                            itemMatch = true
+                        } else {
+                            itemMatch = false
+                            break
+                        }
+                    }
+                } else if (itemSearchFieldValue.startsWith(searchTerm)) {
+                    itemMatch = true
+                }
+            }
+
+            logMsg.push("itemMatch: ${itemMatch}")
+            if (itemMatch) {
+                tempItems.push(tempItem)
+            }
+        }
+    }
+    
+    logDebug("${logMsg}")
+    return tempItems
 }
 
 def triggerStartNotification() {
@@ -690,6 +1051,7 @@ def triggerEndNotification() {
 }
 
 def composeNotification(msg) {
+    def logInfoMsg = []
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
         def counter = 0
@@ -713,6 +1075,12 @@ def composeNotification(msg) {
                 case "scheduleEndTime":
                     value = formatDateTime(atomicState.item["scheduleEndTime"])
                     break
+                case "onSwitches":
+                    value = gatherSwitchNames("on")
+                    break
+                case "offSwitches":
+                    value = gatherSwitchNames("off")
+                    break
                 default:
                     value = atomicState.item[match]
             }
@@ -722,8 +1090,29 @@ def composeNotification(msg) {
     }
     
     logDebug("composeNotification msg: ${msg}")
-    notificationDevices?.deviceNotification(msg)
-    speechDevices?.speak(msg)
+    logInfoMsg.push("Sending Message: " + msg + " to ")
+    if (notificationDevices) {
+        notificationDevices.deviceNotification(msg)
+        logInfoMsg.push(notificationDevices)
+    }
+    if (speechDevices) {
+        speechDevices.speak(msg)
+        logInfoMsg.push(speechDevices)
+    }
+    logInfo("${logInfoMsg.join(" ")}")
+}
+
+def gatherSwitchNames(key) {
+    def answer = "none"
+    if (state.matchSwitches && !state.matchSwitches.isEmpty() && state.matchSwitches[key]) {
+        def switchList = []
+        for (int i = 0; i < state.matchSwitches[key].size(); i++) {
+            switchList.push(state.matchSwitches[key][i].name)
+        }
+        answer = "${switchList.join(", ")}"
+    }
+    
+    return answer
 }
 
 def triggerStartRule() {
@@ -734,6 +1123,10 @@ def triggerStartRule() {
 }
 
 def triggerEndRule() {
+    if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
+        return
+    }
+    
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
@@ -741,18 +1134,24 @@ def triggerEndRule() {
 }
 
 def runRMAPI(action) {
+    def logInfoMsg = []
     if (settings.legacyRule) {
+        logInfoMsg.push(settings.legacyRule)
         RMUtils.sendAction(settings.legacyRule, action, app.label)
     }
     
     if (settings.currentRule) {
+        logInfoMsg.push(settings.currentRule)
         RMUtils.sendAction(settings.currentRule, action, app.label, "5.0")
     }
+    logInfo("Running Rules: " + logInfoMsg.join(", "))
 }
 
 def compareItem(item) {
     def answer = true
     def previousItem = atomicState.item
+    if (previousItem == null) return false
+    
     def itemKeys = item.keySet()
     for (int i = 0; i < itemKeys.size(); i++) {
         def key = itemKeys[i]
@@ -885,6 +1284,12 @@ private logDebug(msg) {
             msg = msg.join(", ");
         }
         log.debug "$msg"
+    }
+}
+
+private logInfo(msg) {
+    if (settings.txtEnable == true && (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true)) {
+        log.info "$msg"
     }
 }
 
