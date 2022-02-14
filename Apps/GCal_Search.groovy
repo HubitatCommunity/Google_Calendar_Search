@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.0" }
+def appVersion() { return "3.2.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -368,7 +368,6 @@ private refreshAuthToken() {
             }
         }
         catch(Exception e) {
-            //log.error "caught exception refreshing auth token: " + e + ", " + e.getResponse().getData()
             log.error "refreshAuthToken - caught exception refreshing auth token: " + e
             answer = false
         }
@@ -776,6 +775,11 @@ def getNextReminders(search, endTimePreference) {
                 reminderDetails.taskTitle = reminder.title.trim()
                 reminderDetails.taskID = reminder.taskId.serverAssignedId
                 reminderDetails.taskDueDate = dueDate
+                if (reminder.recurrenceInfo && reminder.recurrenceInfo.recurrence.frequency) {
+                    reminderDetails.repeat = reminder.recurrenceInfo.recurrence.frequency
+                } else {
+                    reminderDetails.repeat = "none"
+                }
                 reminderList.push(reminderDetails)
             }
         }
@@ -835,14 +839,18 @@ def deleteReminder(taskID) {
     def reminderDeleted = false
     def uri = "https://reminders-pa.clients6.google.com"
     def path = "/v1internalOP/reminders/delete"
-    def bodyParams = [
-        "taskId": [["serverAssignedId": taskID]]
-    ]
-    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
-        
-    if (reminders.status == 200 ) {
-        reminderDeleted = true
+    def taskIDList = taskID.split(",")
+    for (int i = 0; i < taskIDList.size(); i++) {
+        taskID = taskIDList[i]
+        def bodyParams = [
+            "taskId": [["serverAssignedId": taskID]]
+        ]
+        def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
+        logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+
+        if (reminders.status == 200 ) {
+            reminderDeleted = true
+        }
     }
     
     logMsg.push("reminderDeleted: ${reminderDeleted}")
@@ -855,20 +863,24 @@ def completeReminder(taskID) {
     def reminderCompleted = false
     def uri = "https://reminders-pa.clients6.google.com"
     def path = "/v1internalOP/reminders/update"
-    def bodyParams = [
-        "1": ["4": "WRP / /WebCalendar/calendar_190319.03_p1"],
-        "2": ["1": taskID],
-        "4": ["1": ["1": taskID], "8": 1],
-        "7": ["1": [1, 10, 3]],
-    ]
-    
-    def reminders = apiPost("getNextReminders", uri, path, true, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
-        
-    if (reminders.status == 200 ) {
-        reminderCompleted = true
+    def taskIDList = taskID.split(",")
+    for (int i = 0; i < taskIDList.size(); i++) {
+        taskID = taskIDList[i]
+        def bodyParams = [
+            "1": ["4": "WRP / /WebCalendar/calendar_190319.03_p1"],
+            "2": ["1": taskID],
+            "4": ["1": ["1": taskID], "8": 1],
+            "7": ["1": [1, 10, 3]],
+        ]
+
+        def reminders = apiPost("getNextReminders", uri, path, true, bodyParams)
+        logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+
+        if (reminders.status == 200 ) {
+            reminderCompleted = true
+        }
     }
-    
+
     logMsg.push("reminderCompleted: ${reminderCompleted}")
     logDebug("${logMsg}")
     return reminderCompleted
