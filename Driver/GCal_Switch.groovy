@@ -1,7 +1,8 @@
-def driverVersion() { return "3.2.0" }
+def driverVersion() { return "3.2.1" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
+ *
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -34,6 +35,7 @@ metadata {
         attribute "taskTitle", "string"
         attribute "taskID", "string"
         attribute "taskDueDate", "string"
+        attribute "repeat", "string" //Only comes across for Reminders
         
 	}
     
