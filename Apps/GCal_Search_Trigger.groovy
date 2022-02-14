@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.1" }
+def appVersion() { return "3.2.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -674,10 +674,13 @@ def getNextReminders() {
         if (items.size() > 0) {
             item = items[0]
             foundMatch = true
-            if (completeAllPastDue && items.size() > 0) {
+            if (completeAllPastDue && items.size() > 0 && item.repeat != "none") {
+                def recurrenceId = item.recurrenceId
                 def taskIDList = []
                 for (int i = 0; i < items.size(); i++) {
-                    taskIDList.push(items[i].taskID)
+                    if (items[i].recurrenceId == recurrenceId && now() >= items[i].taskDueDate.getTime()) {
+                        taskIDList.push(items[i].taskID)
+                    }
                 }
                 item.taskID = taskIDList.join(",")
             }
