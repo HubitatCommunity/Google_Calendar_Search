@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.1" }
+def appVersion() { return "3.2.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -777,6 +777,7 @@ def getNextReminders(search, endTimePreference) {
                 reminderDetails.taskDueDate = dueDate
                 if (reminder.recurrenceInfo && reminder.recurrenceInfo.recurrence.frequency) {
                     reminderDetails.repeat = reminder.recurrenceInfo.recurrence.frequency
+                    reminderDetails.recurrenceId = reminder.recurrenceInfo.recurrenceId.id
                 } else {
                     reminderDetails.repeat = "none"
                 }
