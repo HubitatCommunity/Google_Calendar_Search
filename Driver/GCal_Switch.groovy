@@ -1,4 +1,4 @@
-def driverVersion() { return "3.2.2" }
+def driverVersion() { return "3.2.3" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -70,19 +70,18 @@ def refresh() {
 def poll() {
     unschedule()
     def logMsg = []
-
+    def result = []
+    
+    def syncValue
+    def item = parent.getNextItems()
     def nowDateTime = new Date()
+    result << sendEvent(name: "lastUpdated", value: parent.formatDateTime(nowDateTime), displayed: false)
     def currentValue = device.currentSwitch
     def defaultValue = determineSwitch(false)
     def toggleValue = determineSwitch(true)
     logMsg.push("poll - BEFORE nowDateTime: ${nowDateTime}, currentValue: ${currentValue} AFTER ")
-    
-    def result = []
-    result << sendEvent(name: "lastUpdated", value: parent.formatDateTime(nowDateTime), displayed: false)
-    
-    def syncValue
-    def item = parent.getNextItems()
     logMsg.push("item: ${item}")
+    
     if (item) {
         def itemKeys = item.keySet()
         def itemFound = false
@@ -109,7 +108,8 @@ def poll() {
         if (itemFound) {
             logMsg.push("event found")
             def compareValue = toggleValue
-
+            
+            logMsg.push("nowDateTime(${nowDateTime}) < item.scheduleStartTime(${item.scheduleStartTime})")
             if (item.scheduleStartTime && nowDateTime < item.scheduleStartTime) {
                 scheduleSwitch(toggleValue, item.scheduleStartTime)
                 if (item.scheduleEndTime) {
