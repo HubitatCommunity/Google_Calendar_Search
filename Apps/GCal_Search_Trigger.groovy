@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.2" }
+def appVersion() { return "3.2.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -49,7 +49,7 @@ def mainPage() {
 				input name: "resumeButton", type: "button", title: "Resume", backgroundColor: "Crimson", textColor: "white", width: 4, submitOnChange: true
 			}
             if (state.refreshed) {
-                paragraph "Last Refreshed:\n${state.refreshed}", width: 4
+                paragraph "Last Refreshed:\n${parseDateTime(state.refreshed)}", width: 4
             }
             input name: "refreshButton", type: "button", title: "Refresh", width: 4, submitOnChange: true
         }
@@ -412,13 +412,16 @@ def getDefaultSwitchValue() {
 }
 
 def getNextItems() {
+    def answer
     if ( settings.searchType == "Task" ) {
-        return getNextTasks()
+        answer = getNextTasks()
     } else if ( settings.searchType == "Reminder" ) {
-        return getNextReminders()
+        answer = getNextReminders()
     } else {
-        return getNextEvents()
+        answer = getNextEvents()
     }
+    state.refreshed = parent.getCurrentTime()
+    return answer
 }
 
 def completeItem() {
@@ -724,10 +727,9 @@ def completeReminder(taskID) {
 def runAdditionalActions(item) {
     def logMsg = ["runAdditionalActions - item: ${item}"]
     def itemSame = compareItem(item)
-    if (itemSame == true) {
+    if (itemSame == true) {        
         logMsg.push("itemSame: ${itemSame}, skipping additional actions")
     } else {
-        atomicState.item = item
         if (settings.controlSwitches != true || settings.controlSwitchList == null) {
             logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
         } else {
@@ -777,7 +779,7 @@ def runAdditionalActions(item) {
             }
         }
     }
-    
+    atomicState.item = item
     logDebug("${logMsg}")
 }
 
@@ -1049,7 +1051,7 @@ def matchItem(items, caseSensitive, searchTerms, searchField) {
 
 def triggerStartNotification() {
     def msg = settings.notificationStartMsg
-    composeNotification(msg)
+    composeNotification("Start Notification", msg)
 }
 
 def triggerEndNotification() {
@@ -1058,10 +1060,10 @@ def triggerEndNotification() {
     }
     
     def msg = settings.notificationEndMsg
-    composeNotification(msg)
+    composeNotification("End Notification", msg)
 }
 
-def composeNotification(msg) {
+def composeNotification(fromFunction, msg) {
     def logInfoMsg = []
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
@@ -1100,8 +1102,8 @@ def composeNotification(msg) {
         }
     }
     
-    logDebug("composeNotification msg: ${msg}")
-    logInfoMsg.push("Sending Message: " + msg + " to ")
+    logDebug("composeNotification fromFunction: ${fromFunction}, msg: ${msg}")
+    logInfoMsg.push("${fromFunction}, Sending Message: " + msg + " to ")
     if (notificationDevices) {
         notificationDevices.deviceNotification(msg)
         logInfoMsg.push(notificationDevices)
@@ -1166,6 +1168,10 @@ def compareItem(item) {
     def itemKeys = item.keySet()
     for (int i = 0; i < itemKeys.size(); i++) {
         def key = itemKeys[i]
+        if (["scheduleStartTime", "scheduleEndTime"].indexOf(key) > -1) {
+            continue
+        }
+        
         def newValue = item[key]
         def oldValue = previousItem[key]
         if (newValue instanceof Date) {
@@ -1206,12 +1212,18 @@ def formatDateTime(dateTime) {
         sdf = new java.text.SimpleDateFormat(defaultDateFormat)
     }
     sdf.setTimeZone(location.timeZone)
-    if (dateTime instanceof String) {
-        def stringSDF = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
-        dateTime = stringSDF.parse(dateTime)
-    }
+    dateTime = parseDateTime(dateTime)
     
     return sdf.format(dateTime)
+}
+
+def parseDateTime(dateTime) {
+    if (dateTime instanceof String) {
+        def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
+        dateTime = sdf.parse(dateTime)
+    }
+    
+    return dateTime
 }
 
 def poll() {
@@ -1223,7 +1235,6 @@ def poll() {
         logDebug "poll - no childDevice"
         getNextItems()
     }
-    state.refreshed = formatDateTime(new Date())
 }
 
 def syncChildSwitches(value){
