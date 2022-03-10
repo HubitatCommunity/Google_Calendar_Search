@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.2" }
+def appVersion() { return "3.2.3" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -330,7 +330,7 @@ def callback() {
 
 private refreshAuthToken() {
     def answer
-    def logMsg = ["refreshAuthToken - "]
+    def logMsg = ["refreshAuthToken - state.refreshToken: ${state.refreshToken}"]
     if(!atomicState.refreshToken && !state.refreshToken) {
         answer = false
         logMsg.push("Can not refresh OAuth token since there is no refreshToken stored, ${state}")
@@ -410,7 +410,7 @@ def revokeAccess() {
             logDebug "Resp Status: ${resp.status}, Data: ${resp.data}"    		
 		}
 	} catch (e) {
-        log.error "revokeAccess - something went wrong: ${e}, ${e.getResponse().getData()}"
+        log.error "revokeAccess - something went wrong: ${e}"
 	}
 }
 
