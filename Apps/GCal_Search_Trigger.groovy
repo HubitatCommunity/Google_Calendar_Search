@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.3" }
+def appVersion() { return "3.2.4" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -1095,7 +1095,7 @@ def composeNotification(fromFunction, msg) {
                     value = gatherSwitchNames("off")
                     break
                 default:
-                    value = atomicState.item[match]
+                    value = atomicState.item[match].toString()
             }
             def textMatch = "%" + match + "%"
             msg = msg.replace(textMatch, value)
@@ -1321,5 +1321,9 @@ def upgradeSettings(){
         app.removeSetting("watchCalendars")
         app.updateSetting("searchType", [value:"Calendar Event", type:"enum"])
         log.info "Upgraded ${app.label} settings"
+    }
+    
+    if (state.refreshed && state.refreshed.toString().indexOf(" ") > -1) {
+        state.refreshed = parent.getCurrentTime()
     }
 }
