@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.4" }
+def appVersion() { return "3.3.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -193,7 +193,6 @@ def updated() {
 }
 
 def initialize() {
-    log.debug "initialize()"
     // Make sure no leading or trailing spaces on gaClientID and gaClientSecret
     if (settings.gaClientID && settings.gaClientID != settings.gaClientID.trim()) {
         app.updateSetting("gaClientID",[type: "text", value: settings.gaClientID.trim()])
@@ -204,8 +203,6 @@ def initialize() {
     
     updateAppLabel()
     upgradeSettings()
-    state.version = appVersion()
-    
 }
 
 def uninstalled() {
@@ -935,7 +932,7 @@ def getEndDate(endTimePreference, format=true) {
     //RFC 3339 format
     //2015-06-20T11:39:45.0Z
     def endDate = new Date()
-    int numberOfHours
+    long numberOfHours
     
     if (["endOfToday", "endOfTomorrow"].indexOf(endTimePreference) > -1) {
         endDate.setHours(23);
@@ -1049,29 +1046,38 @@ private logDebug(msg) {
     }
 }
 
+def versionToInt(version=null) {
+    version = (version == null) ? appVersion() : version
+    return version.replace(".", "").toInteger()
+}
+
 def upgradeSettings() {
     if (state.version == null || state.version != appVersion()) {
         childApps.each {
             child ->
             child.upgradeSettings()
         }
+        
+        int currentVersionInt = versionToInt()
+        if (currentVersionInt < versionToInt("3.0.0")) {
+            // Remove old states from previous version that are no longer utilized.  This code will be removed in the future
+            state.remove("authCode")
+            state.remove("calendars")
+            state.remove("deviceCode")
+            state.remove("events")
+            state.remove("isScheduled")
+            state.remove("last_use")
+            state.remove("setup")
+            state.remove("userCode")
+            state.remove("verificationUrl")
 
-        // Remove old states from previous version that are no longer utilized.  This code will be removed in the future
-        state.remove("authCode")
-        state.remove("calendars")
-        state.remove("deviceCode")
-        state.remove("events")
-        state.remove("isScheduled")
-        state.remove("last_use")
-        state.remove("setup")
-        state.remove("userCode")
-        state.remove("verificationUrl")
-
-        // Remove old settings from previous version that are no longer utilized.
-        app.removeSetting("cacheThreshold")
-        app.removeSetting("clearCache")
-        app.removeSetting("resyncNow")
-
+            // Remove old settings from previous version that are no longer utilized.
+            app.removeSetting("cacheThreshold")
+            app.removeSetting("clearCache")
+            app.removeSetting("resyncNow")
+        }
+        
+        atomicState.version = appVersion()
         log.info "Upgraded GCal Search settings"
     }
 }
