@@ -1,4 +1,4 @@
-def driverVersion() { return "3.2.4" }
+def driverVersion() { return "3.3.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -27,6 +27,7 @@ metadata {
         //Calendar
         attribute "eventTitle", "string"
         attribute "eventLocation", "string"
+        attribute "eventDescription", "string"
         attribute "eventStartTime", "string"
         attribute "eventEndTime", "string"
         attribute "eventAllDay", "bool"
