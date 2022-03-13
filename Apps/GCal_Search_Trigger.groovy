@@ -1,4 +1,4 @@
-def appVersion() { return "3.2.4" }
+def appVersion() { return "3.3.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -15,7 +15,7 @@ def appVersion() { return "3.2.4" }
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  Unless required by applicable law or agreed to in wr iting, software distributed under the License is distributed
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
@@ -202,6 +202,8 @@ def mainPage() {
                     paragraph "${parent.getFormat("text", "<u>Custom message to send</u>: " + getNotificationMsgDescription(settings.searchType))}"
                     input name: "notificationStartMsg", type: "textarea", title: "${startMsg}", required: false
                     input name: "notificationEndMsg", type: "textarea", title: "${endMsg}", required: false
+                    paragraph "${parent.getFormat("text", "<u>Include details from all matching items</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. By default only details from the first item will be included in notifications. Set this setting to true if you want details from all matching items to be included.")}"
+                    input "includeAllItems", "bool", title: "Include details from all matching items?", defaultValue: false
                     input "notificationDevices", "capability.notification", title: "Send notification to device(s)?", required: false, multiple: true
                     input "speechDevices", "capability.speechSynthesis", title: "Speak notification on these device(s)?", required: false, multiple: true
                 }
@@ -265,7 +267,7 @@ def mainPage() {
 def getNotificationMsgDescription(searchType) {
     def answer
     if (searchType == "Calendar Event") {
-        answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
+        answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventDescription% to include event description, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
         if (settings.setOffset) {
             answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%."
         }
@@ -285,9 +287,9 @@ def getNotificationMsgDescription(searchType) {
 def getNextItemDescription() {    
     def answer
     if (state.item) {
-        def itemTitle = (state.item.eventTitle) ? state.item.eventTitle : state.item.taskTitle
+        def item = (state.item instanceof ArrayList) ? state.item[0] : state.item
+        def itemTitle = (item.eventTitle) ? item.eventTitle : item.taskTitle
         if (itemTitle != " ") {
-            def item = state.item
             def searchType = (settings.searchType) ? settings.searchType : "Item"
             def itemDetails = ""
             if (searchType == "Calendar Event") {
@@ -412,6 +414,9 @@ def getDefaultSwitchValue() {
 }
 
 def getNextItems() {
+    //Just in case verify upgrade
+    parent.upgradeSettings()
+    
     def answer
     if ( settings.searchType == "Task" ) {
         answer = getNextTasks()
@@ -425,7 +430,7 @@ def getNextItems() {
 }
 
 def completeItem() {
-    def taskID = state.item.taskID
+    def taskID = (state.item instanceof ArrayList) ? state.item[0].taskID : state.item.taskID
 	if (taskID && settings.searchType == "Task") {
         return completeTask(taskID)
     } else if (taskID && settings.searchType == "Reminder") {
@@ -457,6 +462,7 @@ def getNextEvents() {
     
     def item = [
         eventTitle: " ",
+        eventDescription: " ",
         eventLocation: " ",
         eventAllDay: " ",
         eventStartTime: " ",
@@ -569,15 +575,20 @@ def getNextEvents() {
             }
             // Remove description if it is not used for switch control
             if (settings.controlSwitches != true || (settings.controlSwitches == true && settings.itemField != "description")) {
-                item.remove("eventDescription")
+                //item.remove("eventDescription")
             }
         }
     }
     
-    logMsg.push("item: ${item}")
+    if (items.size() > 0) {
+        items[0] = item
+    } else {
+        items = [item]
+    }
+    logMsg.push("item: ${item}, items: ${items}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item)
+    runAdditionalActions(items)
     return item
 }
 
@@ -597,7 +608,7 @@ def getNextTasks() {
     ]
     def foundMatch = false
     def sequentialEventOffset = false
-    if (items && items.size() > 0) {        
+    if (items && items.size() > 0) {     
         // Check for search string match
         if (items.size() > 0) {
             def eventField = "taskTitle"
@@ -626,10 +637,15 @@ def getNextTasks() {
         }
     }
     
-    logMsg.push("item: ${item}")
+    if (items.size() > 0) {
+        items[0] = item
+    } else {
+        items = [item]
+    }
+    logMsg.push("item: ${item}, items: ${items}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item)
+    runAdditionalActions(items)
     return item
 }
 
@@ -667,7 +683,7 @@ def getNextReminders() {
     def foundMatch = false
     def completeAllPastDue = true
     def sequentialEventOffset = false
-    if (items && items.size() > 0) {        
+    if (items && items.size() > 0) {   
         // Check for search string match
         if (items.size() > 0) {
             def eventField = "taskTitle"
@@ -677,11 +693,11 @@ def getNextReminders() {
         if (items.size() > 0) {
             item = items[0]
             foundMatch = true
-            if (completeAllPastDue && items.size() > 0 && item.repeat != "none") {
+            if (completeAllPastDue && item.repeat != "none" && items.size() > 0) {
                 def recurrenceId = item.recurrenceId
-                def taskIDList = []
+                def taskIDList = [item.taskID]
                 for (int i = 0; i < items.size(); i++) {
-                    if (items[i].recurrenceId == recurrenceId && now() >= items[i].taskDueDate.getTime()) {
+                    if (items[i].recurrenceId == recurrenceId && taskIDList.indexOf(items[i].taskID) == -1 && now() >= items[i].taskDueDate.getTime()) {
                         taskIDList.push(items[i].taskID)
                     }
                 }
@@ -706,10 +722,15 @@ def getNextReminders() {
         }
     }
     
-    logMsg.push("item: ${item}")
+    if (items.size() > 0) {
+        items[0] = item
+    } else {
+        items = [item]
+    }
+    logMsg.push("item: ${item}, items: ${items}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item)
+    runAdditionalActions(items)
     return item
 }
 
@@ -724,12 +745,13 @@ def completeReminder(taskID) {
     return answer
 }
 
-def runAdditionalActions(item) {
-    def logMsg = ["runAdditionalActions - item: ${item}"]
-    def itemSame = compareItem(item)
+def runAdditionalActions(items) {
+    def itemSame = compareItem(items)
+    def logMsg = ["runAdditionalActions - items: ${items}, itemSame: ${itemSame}"]
     if (itemSame == true) {        
         logMsg.push("itemSame: ${itemSame}, skipping additional actions")
     } else {
+        def item = items[0]
         if (settings.controlSwitches != true || settings.controlSwitchList == null) {
             logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
         } else {
@@ -748,7 +770,7 @@ def runAdditionalActions(item) {
         } else {
             unschedule(triggerStartNotification)
             unschedule(triggerEndNotification)
-
+            
             if (item.scheduleStartTime != null && settings.notificationStartMsg != null) {
                 def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
                 logMsg.push("scheduling start notification at ${scheduleStartTime}")
@@ -779,7 +801,7 @@ def runAdditionalActions(item) {
             }
         }
     }
-    atomicState.item = item
+    atomicState.item = (settings.includeAllItems == true) ? items : [items[0]]
     logDebug("${logMsg}")
 }
 
@@ -1067,39 +1089,49 @@ def composeNotification(fromFunction, msg) {
     def logInfoMsg = []
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
-        def counter = 0
-        while (msg.indexOf("%") > -1) {
-            def matches = msg =~ pattern
-            def match = matches[0]
-            def value
-            switch (match) {
-                case "eventStartTime":
-                    value = formatDateTime(atomicState.item["eventStartTime"])
+        def items = atomicState.item
+        if (settings.includeAllItems != true) {
+            items = [items[0]]
+        }
+        def msgList = []
+        for (int i = 0; i < items.size(); i++) {
+            def tempMsg = msg
+            def item = items[i]
+            while (tempMsg.indexOf("%") > -1) {
+                def matches = tempMsg =~ pattern
+                def match = matches[0]
+                def value
+                switch (match) {
+                    case "eventStartTime":
+                    value = formatDateTime(item["eventStartTime"])
                     break
-                case "eventEndTime":
-                    value = formatDateTime(atomicState.item["eventEndTime"])
+                    case "eventEndTime":
+                    value = formatDateTime(item["eventEndTime"])
                     break
-                case "taskDueDate":
-                    value = formatDateTime(atomicState.item["taskDueDate"])
+                    case "taskDueDate":
+                    value = formatDateTime(item["taskDueDate"])
                     break
-                case "scheduleStartTime":
-                    value = formatDateTime(atomicState.item["scheduleStartTime"])
+                    case "scheduleStartTime":
+                    value = formatDateTime(item["scheduleStartTime"])
                     break
-                case "scheduleEndTime":
-                    value = formatDateTime(atomicState.item["scheduleEndTime"])
+                    case "scheduleEndTime":
+                    value = formatDateTime(item["scheduleEndTime"])
                     break
-                case "onSwitches":
+                    case "onSwitches":
                     value = gatherSwitchNames("on")
                     break
-                case "offSwitches":
+                    case "offSwitches":
                     value = gatherSwitchNames("off")
                     break
-                default:
-                    value = atomicState.item[match].toString()
+                    default:
+                        value = item[match].toString()
+                }
+                def textMatch = "%" + match + "%"
+                tempMsg = tempMsg.replace(textMatch, value)
             }
-            def textMatch = "%" + match + "%"
-            msg = msg.replace(textMatch, value)
+            msgList.push(tempMsg)
         }
+        msg = msgList.join(", ")
     }
     
     logDebug("composeNotification fromFunction: ${fromFunction}, msg: ${msg}")
@@ -1160,28 +1192,32 @@ def runRMAPI(action) {
     logInfo("Running Rules: " + logInfoMsg.join(", "))
 }
 
-def compareItem(item) {
+def compareItem(items) {
     def answer = true
-    def previousItem = atomicState.item
-    if (previousItem == null) return false
+    def previousItems = atomicState.item
+    if (previousItems == null || items.size() != previousItems.size()) return false
     
-    def itemKeys = item.keySet()
-    for (int i = 0; i < itemKeys.size(); i++) {
-        def key = itemKeys[i]
-        if (["scheduleStartTime", "scheduleEndTime"].indexOf(key) > -1) {
-            continue
-        }
-        
-        def newValue = item[key]
-        def oldValue = previousItem[key]
-        if (newValue instanceof Date) {
-            newValue = formatDateTime(newValue)
-            oldValue = formatDateTime(oldValue)
-        }
-        
-        if (newValue != oldValue) {
-            answer = false
-            break
+    for (int i = 0; i < items.size(); i++) {
+        def item = items[i]
+        def previousItem = previousItems[i]
+        def itemKeys = item.keySet()
+        for (int k = 0; k < itemKeys.size(); k++) {
+            def key = itemKeys[k]
+            if (["scheduleStartTime", "scheduleEndTime"].indexOf(key) > -1) {
+                continue
+            }
+
+            def newValue = item[key]
+            def oldValue = previousItem[key]
+            if (newValue instanceof Date) {
+                newValue = formatDateTime(newValue)
+                oldValue = formatDateTime(oldValue)
+            }
+
+            if (newValue != oldValue) {
+                answer = false
+                break
+            }
         }
     }
     
@@ -1315,15 +1351,27 @@ private logInfo(msg) {
     }
 }
 
-def upgradeSettings(){
+def upgradeSettings() {
+    def upgraded = false
     if (settings.watchCalendars && settings.watchCalendars != null) {
         app.updateSetting("watchList", [value:"${settings.watchCalendars}", type:"enum"])
         app.removeSetting("watchCalendars")
         app.updateSetting("searchType", [value:"Calendar Event", type:"enum"])
-        log.info "Upgraded ${app.label} settings"
+        upgraded = true
     }
     
     if (state.refreshed && state.refreshed.toString().indexOf(" ") > -1) {
-        state.refreshed = parent.getCurrentTime()
+        atomicState.refreshed = parent.getCurrentTime()
+        upgraded = true
+    }
+    
+    if (state.item && state.item instanceof HashMap) {
+        //upgrade state.item to an array
+        atomicState.item = [atomicState.item]
+        upgraded = true
+    }
+    
+    if (upgraded) {
+        log.info "Upgraded ${app.label} settings"
     }
 }
