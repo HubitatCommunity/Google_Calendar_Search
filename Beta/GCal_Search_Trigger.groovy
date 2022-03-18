@@ -580,15 +580,10 @@ def getNextEvents() {
         }
     }
     
-    if (items.size() > 0) {
-        items[0] = item
-    } else {
-        items = [item]
-    }
-    logMsg.push("item: ${item}, items: ${items}")
+    logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(items)
+    runAdditionalActions(item, items)
     return item
 }
 
@@ -637,15 +632,10 @@ def getNextTasks() {
         }
     }
     
-    if (items.size() > 0) {
-        items[0] = item
-    } else {
-        items = [item]
-    }
-    logMsg.push("item: ${item}, items: ${items}")
+    logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(items)
+    runAdditionalActions(item, items)
     return item
 }
 
@@ -722,15 +712,10 @@ def getNextReminders() {
         }
     }
     
-    if (items.size() > 0) {
-        items[0] = item
-    } else {
-        items = [item]
-    }
-    logMsg.push("item: ${item}, items: ${items}")
+    logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(items)
+    runAdditionalActions(item, items)
     return item
 }
 
@@ -745,14 +730,18 @@ def completeReminder(taskID) {
     return answer
 }
 
-def runAdditionalActions(items) {
-    items = (settings.includeAllItems == true) ? items : [items[0]]
+def runAdditionalActions(item, items) {
+    if (settings.includeAllItems == true && items.size() > 0) {
+        items[0] = item
+    } else {
+        items = [item]
+    }
+    
     def itemSame = compareItem(items)
     def logMsg = ["runAdditionalActions - items: ${items}, itemSame: ${itemSame}"]
     if (itemSame == true) {        
-        logMsg.push("itemSame: ${itemSame}, skipping additional actions")
+        logMsg.push("no item changes, skipping additional actions")
     } else {
-        def item = items[0]
         if (settings.controlSwitches != true || settings.controlSwitchList == null) {
             logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
         } else {
@@ -802,7 +791,7 @@ def runAdditionalActions(items) {
             }
         }
     }
-    atomicState.item = (settings.includeAllItems == true) ? items : [items[0]]
+    atomicState.item = items
     logDebug("${logMsg}")
 }
 
@@ -1091,9 +1080,6 @@ def composeNotification(fromFunction, msg) {
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
         def items = atomicState.item
-        if (settings.includeAllItems != true) {
-            items = [items[0]]
-        }
         def msgList = []
         for (int i = 0; i < items.size(); i++) {
             def tempMsg = msg
@@ -1103,32 +1089,21 @@ def composeNotification(fromFunction, msg) {
                 def match = matches[0]
                 def value
                 switch (match) {
-                    case "eventStartTime":
-                    value = formatDateTime(item["eventStartTime"])
-                    break
-                    case "eventEndTime":
-                    value = formatDateTime(item["eventEndTime"])
-                    break
-                    case "taskDueDate":
-                    value = formatDateTime(item["taskDueDate"])
-                    break
-                    case "scheduleStartTime":
-                    value = formatDateTime(item["scheduleStartTime"])
-                    break
-                    case "scheduleEndTime":
-                    value = formatDateTime(item["scheduleEndTime"])
-                    break
                     case "onSwitches":
-                    value = gatherSwitchNames("on")
-                    break
+                        value = gatherSwitchNames("on")
+                        break
                     case "offSwitches":
-                    value = gatherSwitchNames("off")
-                    break
+                        value = gatherSwitchNames("off")
+                        break
                     default:
                         value = item[match].toString()
                 }
+                if (value != "null" && ["eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(match) > -1) {
+                    value = formatDateTime(value)
+                }
+                
                 def textMatch = "%" + match + "%"
-                tempMsg = tempMsg.replace(textMatch, value)
+                tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
             }
             msgList.push(tempMsg)
         }
