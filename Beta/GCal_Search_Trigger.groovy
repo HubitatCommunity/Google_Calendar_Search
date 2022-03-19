@@ -265,14 +265,14 @@ def mainPage() {
 }
 
 def getNotificationMsgDescription(searchType) {
-    def answer
+    def answer = "Use %now% to include current date/time of when notification is sent, "
     if (searchType == "Calendar Event") {
-        answer = "Use %eventTitle% to include event title, %eventLocation% to include event location, %eventDescription% to include event description, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
+        answer += "%eventTitle% to include event title, %eventLocation% to include event location, %eventDescription% to include event description, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
         if (settings.setOffset) {
             answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%."
         }
     } else {
-        answer = "Use %taskTitle% to include task title and %taskDueDate% to include task due date."
+        answer += "%taskTitle% to include task title and %taskDueDate% to include task due date."
         if (settings.setOffset) {
             answer += " Offset values can be be added by using %scheduleStartTime%."
         }
@@ -572,10 +572,6 @@ def getNextEvents() {
                 tempEndTime = tempEndTime + offsetEnd
                 item.scheduleEndTime.setTime(tempEndTime)
                 logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
-            }
-            // Remove description if it is not used for switch control
-            if (settings.controlSwitches != true || (settings.controlSwitches == true && settings.itemField != "description")) {
-                //item.remove("eventDescription")
             }
         }
     }
@@ -1089,6 +1085,9 @@ def composeNotification(fromFunction, msg) {
                 def match = matches[0]
                 def value
                 switch (match) {
+                    case "now":
+                        value = new Date()
+                        break
                     case "onSwitches":
                         value = gatherSwitchNames("on")
                         break
@@ -1098,14 +1097,16 @@ def composeNotification(fromFunction, msg) {
                     default:
                         value = item[match].toString()
                 }
-                if (value != "null" && ["eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(match) > -1) {
+                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(match) > -1) {
                     value = formatDateTime(value)
                 }
                 
                 def textMatch = "%" + match + "%"
                 tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
             }
-            msgList.push(tempMsg)
+            if (tempMsg.trim()) {
+                msgList.push(tempMsg)
+            }
         }
         msg = msgList.join(", ")
     }
