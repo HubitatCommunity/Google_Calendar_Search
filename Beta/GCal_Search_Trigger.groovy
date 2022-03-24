@@ -765,7 +765,9 @@ def runAdditionalActions(items) {
                         if (item.scheduleEndTime && item.scheduleEndTime != null) {
                             scheduleItem.end = item.scheduleEndTime
                         }
-                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && !scheduleItems.triggerStartNotification[i-1].isEmpty() && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
+                        //log.trace "michael item: ${scheduleItems.triggerStartNotification}"
+                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && scheduleItems.triggerStartNotification[i-1]!= null && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
+                            //if (i != 0) log.info "index: ${i-1}, item2: ${scheduleItems.triggerStartNotification[i-1]}"
                             logMsg.push("scheduling start notification ${scheduleItem}")
                             scheduleItems.triggerStartNotification.push(scheduleItem)
                         }
