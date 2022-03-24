@@ -1113,7 +1113,7 @@ def composeNotification(fromFunction, msg, itemID) {
         if (settings.includeAllItems == false) {
             items = [items[0]]
         } else if (itemID) {
-            def tempItem = items.find{it.taskID == itemID}
+            def tempItem = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
             def itemIndex = items.indexOf(tempItem)
             def tempItems = []
             for (int t = itemIndex; t < items.size(); t++) {
