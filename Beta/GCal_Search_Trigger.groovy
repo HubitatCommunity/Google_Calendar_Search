@@ -306,7 +306,7 @@ def getNextItemDescription() {
                 itemDetails += "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
                 itemDetails += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
             }
-            
+            //Michael - update below
             if (state.matchSwitches && !state.matchSwitches.isEmpty()) {
                 if (state.matchSwitches.on) {
                     itemDetails += "\n<b>Switches to turn on</b>: "
@@ -520,13 +520,13 @@ def getNextEvents() {
             items = matchItem(items, caseSensitive, search, eventField)
         }
         
-        if (items.size() > 0) {
-            item = items[0]
+        for (int i = 0; i < items.size(); i++) {
+            item = items[i]
             foundMatch = true
             
-            if (items.size() > 1) {
-                for (int i = 1; i < items.size(); i++) {
-                    def newItem = items[i]
+            if (i < items.size()) {
+                for (int j = 1; j < items.size(); j++) {
+                    def newItem = items[j]
                     def currentEventEndTime = new Date(item.eventEndTime.getTime())
                     def nextEventStartTime = new Date(newItem.eventStartTime.getTime())
                     if (settings.sequentialEvent) {
@@ -545,10 +545,7 @@ def getNextEvents() {
                     }
                 }
             }
-        }
-        
-        logMsg.push("foundMatch: ${foundMatch}, item: ${item}")
-        if (foundMatch) {
+            
             item.scheduleStartTime = new Date(item.eventStartTime.getTime())
             if (settings.delayToggle == false) {
                 item.scheduleStartTime = new Date()
@@ -573,13 +570,19 @@ def getNextEvents() {
                 item.scheduleEndTime.setTime(tempEndTime)
                 logMsg.push("Event end offset: ${settings.offsetEnd}, adjusting time from ${origEndTime} to ${item.scheduleEndTime}")
             }
+            items[i] = item
+        }
+        
+        logMsg.push("foundMatch: ${foundMatch}")
+        if (foundMatch) {
+            item  = items[0]
         }
     }
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item, items)
+    runAdditionalActions((items.isEmpty()) ? [item] : items)
     return item
 }
 
@@ -597,7 +600,6 @@ def getNextTasks() {
         taskDueDate: " ",
         switch: "defaultValue"
     ]
-    def foundMatch = false
     def sequentialEventOffset = false
     if (items && items.size() > 0) {     
         // Check for search string match
@@ -608,11 +610,6 @@ def getNextTasks() {
         
         if (items.size() > 0) {
             item = items[0]
-            foundMatch = true
-        }
-        
-        logMsg.push("foundMatch: ${foundMatch}, item: ${item}")
-        if (foundMatch) {
             item.scheduleStartTime = new Date(item.taskDueDate.getTime())
             if (settings.delayToggle == false) {
                 item.scheduleStartTime = new Date()
@@ -625,13 +622,14 @@ def getNextTasks() {
                 item.scheduleStartTime.setTime(tempStartTime)
                 logMsg.push("Task start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
             }
+            items[0] = item
         }
     }
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item, items)
+    runAdditionalActions((items.isEmpty()) ? [item] : items)
     return item
 }
 
@@ -666,7 +664,6 @@ def getNextReminders() {
         taskDueDate: " ",
         switch: "defaultValue"
     ]
-    def foundMatch = false
     def completeAllPastDue = true
     def sequentialEventOffset = false
     if (items && items.size() > 0) {   
@@ -678,7 +675,6 @@ def getNextReminders() {
         
         if (items.size() > 0) {
             item = items[0]
-            foundMatch = true
             if (completeAllPastDue && item.repeat != "none" && items.size() > 0) {
                 def recurrenceId = item.recurrenceId
                 def taskIDList = [item.taskID]
@@ -689,10 +685,7 @@ def getNextReminders() {
                 }
                 item.taskID = taskIDList.join(",")
             }
-        }
-        
-        logMsg.push("foundMatch: ${foundMatch}, item: ${item}")
-        if (foundMatch) {
+            
             item.scheduleStartTime = new Date(item.taskDueDate.getTime())
             if (settings.delayToggle == false) {
                 item.scheduleStartTime = new Date()
@@ -705,13 +698,14 @@ def getNextReminders() {
                 item.scheduleStartTime.setTime(tempStartTime)
                 logMsg.push("Task start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
             }
+            items[0] = item
         }
     }
     
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions(item, items)
+    runAdditionalActions((items.isEmpty()) ? [item] : items)
     return item
 }
 
@@ -726,64 +720,101 @@ def completeReminder(taskID) {
     return answer
 }
 
-def runAdditionalActions(item, items) {
-    if (settings.includeAllItems == true && items.size() > 0) {
-        items[0] = item
+def runAdditionalActions(items) {
+    def logMsg = ["runAdditionalActions - items: ${items}"]
+    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true) {
+        logMsg.push("No additional actions to run")
     } else {
-        items = [item]
-    }
-    
-    def itemSame = compareItem(items)
-    def logMsg = ["runAdditionalActions - items: ${items}, itemSame: ${itemSame}"]
-    if (itemSame == true) {        
-        logMsg.push("no item changes, skipping additional actions")
-    } else {
-        if (settings.controlSwitches != true || settings.controlSwitchList == null) {
-            logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
-        } else {
-            unschedule(triggerSwitchControl)
+        //state.additionalActions = (state.additionalActions) ? state.additionalActions : [:]
 
-            if (item.scheduleStartTime != null) {
-                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                logMsg.push("scheduling switch control actions at ${scheduleStartTime}")
-                runOnce(scheduleStartTime, triggerSwitchControl)
-            }
-            atomicState.matchSwitches = gatherControlSwitches(item)
-        }
-    
-        if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
-            logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
+        def itemSame = compareItem(items)
+        logMsg.push("itemSame: ${itemSame}")
+        if (itemSame == true) {        
+            logMsg.push("no item changes, skipping additional actions")
         } else {
-            unschedule(triggerStartNotification)
-            unschedule(triggerEndNotification)
+            def scheduleItems = [
+                triggerSwitchControl : [],
+                triggerStartNotification : [],
+                triggerEndNotification : [],
+                triggerStartRule : [],
+                triggerEndRule : []
+            ]
+            for (int i = 0; i < items.size(); i++) {
+                item = items[i]
+                def scheduleItem = [:]
+                if (settings.controlSwitches != true || settings.controlSwitchList == null) {
+                    logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
+                } else {
+                    if (item.scheduleStartTime && item.scheduleStartTime != null) {
+                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                        scheduleItem.time = scheduleStartTime
+                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                        logMsg.push("scheduling switch control actions ${scheduleItem}")
+                        scheduleItems.triggerSwitchControl.push(scheduleItem)
+                    }
+                    atomicState.matchSwitches = gatherControlSwitches(item)
+                }
+
+                if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
+                    logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
+                } else {
+                    if (item.scheduleStartTime && item.scheduleStartTime != null && settings.notificationStartMsg != null) {
+                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                        scheduleItem.time = scheduleStartTime
+                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                        if (item.scheduleEndTime && item.scheduleEndTime != null) {
+                            scheduleItem.end = item.scheduleEndTime
+                        }
+                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
+                            logMsg.push("scheduling start notification ${scheduleItem}")
+                            scheduleItems.triggerStartNotification.push(scheduleItem)
+                        }
+                    }
+
+                    if (searchType == "Calendar Event" && item.scheduleEndTime && item.scheduleEndTime != null && settings.notificationEndMsg != null) {
+                        scheduleItem.time = item.scheduleEndTime
+                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                        logMsg.push("scheduling end notification ${scheduleItem}")
+                        scheduleItems.triggerEndNotification.push(scheduleItem)
+                    }
+                }
+
+                if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
+                    logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
+                } else {
+                    if (item.scheduleStartTime && item.scheduleStartTime != null) {
+                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                        scheduleItem.time = scheduleStartTime
+                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                        if (item.scheduleEndTime && item.scheduleEndTime != null) {
+                            scheduleItem.end = item.scheduleEndTime
+                        }
+                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartRule.size() > 0 && scheduleItems.triggerStartRule[i-1].end && scheduleStartTime <= scheduleItems.triggerStartRule[i-1].end)) {
+                            logMsg.push("scheduling start rule actions ${scheduleItem}")
+                            scheduleItems.triggerStartRule.push(scheduleItem)
+                        }
+                    }
+
+                    if (searchType == "Calendar Event" && item.scheduleEndTime && item.scheduleEndTime != null) {
+                        scheduleItem.time = item.scheduleEndTime
+                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                        logMsg.push("scheduling end rule actions ${scheduleItem}")
+                        scheduleItems.triggerEndRule.push(scheduleItem)
+                    }
+                }
+            }
             
-            if (item.scheduleStartTime != null && settings.notificationStartMsg != null) {
-                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                logMsg.push("scheduling start notification at ${scheduleStartTime}")
-                runOnce(scheduleStartTime, triggerStartNotification)
-            }
-
-            if (item.scheduleEndTime != null && settings.notificationEndMsg != null && searchType == "Calendar Event") {
-                logMsg.push("scheduling end notification at ${item.scheduleEndTime}")
-                runOnce(item.scheduleEndTime, triggerEndNotification)
-            }
-        }
-
-        if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
-            logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
-        } else {
-            unschedule(triggerStartRule)
-            unschedule(triggerEndRule)
-
-            if (item.scheduleStartTime != null) {
-                def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                logMsg.push("scheduling start rule actions at ${scheduleStartTime}")
-                runOnce(scheduleStartTime, triggerStartRule)
-            }
-
-            if (item.scheduleEndTime != null && searchType == "Calendar Event") {
-                logMsg.push("scheduling end rule actions at ${item.scheduleEndTime}")
-                runOnce(item.scheduleEndTime, triggerEndRule)
+            logMsg.push("scheduleItems: ${scheduleItems}")
+            def scheduleKeys = scheduleItems.keySet()
+            for (int k = 0; k < scheduleKeys.size(); k++) {
+                def key = scheduleKeys[k]
+                def values = scheduleItems[key]
+                unschedule(key)
+                
+                for (int v = 0; v < values.size(); v++) {
+                    def value = values[v]
+                    runOnce(value.time, key, [overwrite: false, data: ["id": value.id]])
+                }
             }
         }
     }
@@ -947,7 +978,8 @@ def gatherControlSwitches(item) {
     return answer
 }
 
-def triggerSwitchControl() {
+def triggerSwitchControl(Map data=null) {
+    def itemID = data.id
     def logMsg = ["triggerSwitchControl - "]
     def logInfoMsg = []
     if (state.matchSwitches.on) {
@@ -1057,25 +1089,38 @@ def matchItem(items, caseSensitive, searchTerms, searchField) {
     return tempItems
 }
 
-def triggerStartNotification() {
+def triggerStartNotification(Map data=null) {
+    def itemID = data.id
     def msg = settings.notificationStartMsg
-    composeNotification("Start Notification", msg)
+    composeNotification("Start Notification", msg, itemID)
 }
 
-def triggerEndNotification() {
+def triggerEndNotification(Map data=null) {
     if (settings.sendNotification != true || settings.notificationEndMsg == null || (settings.notificationDevices == null && settings.speechDevices == null)) {
         return
     }
     
+    def itemID = data.id
     def msg = settings.notificationEndMsg
-    composeNotification("End Notification", msg)
+    composeNotification("End Notification", msg, itemID)
 }
 
-def composeNotification(fromFunction, msg) {
+def composeNotification(fromFunction, msg, itemID) {
     def logInfoMsg = []
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
         def items = atomicState.item
+        if (settings.includeAllItems == false) {
+            items = [items[0]]
+        } else if (itemID) {
+            def tempItem = items.find{it.taskID == itemID}
+            def itemIndex = items.indexOf(tempItem)
+            def tempItems = []
+            for (int t = itemIndex; t < items.size(); t++) {
+                tempItems.push(items[t])
+            }
+            items = tempItems
+        }
         def msgList = []
         for (int i = 0; i < items.size(); i++) {
             def tempMsg = msg
@@ -1137,18 +1182,20 @@ def gatherSwitchNames(key) {
     return answer
 }
 
-def triggerStartRule() {
+def triggerStartRule(Map data=null) {
+    def itemID = data.id
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanTrue")
     }
     runRMAPI("runRuleAct")
 }
 
-def triggerEndRule() {
+def triggerEndRule(Map data=null) {
     if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
         return
     }
     
+    def itemID = data.id
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
