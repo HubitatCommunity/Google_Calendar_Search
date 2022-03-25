@@ -364,6 +364,7 @@ def installed() {
 def updated() {
 	unschedule()
     initialize()
+    poll()
 }
 
 def initialize() {
@@ -765,9 +766,8 @@ def runAdditionalActions(items) {
                         if (item.scheduleEndTime && item.scheduleEndTime != null) {
                             scheduleItem.end = item.scheduleEndTime
                         }
-                        //log.trace "michael item: ${scheduleItems.triggerStartNotification}"
-                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && scheduleItems.triggerStartNotification[i-1]!= null && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
-                            //if (i != 0) log.info "index: ${i-1}, item2: ${scheduleItems.triggerStartNotification[i-1]}"
+                        if ((i == 0 && now() <= item.scheduleStartTime.getTime()) || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && scheduleItems.triggerStartNotification[i-1]!= null && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
+                            //if (i != 0) log.info "index: ${i-1}, item-1: ${scheduleItems.triggerStartNotification[i-1]}, scheduleItem: ${scheduleItem}"
                             logMsg.push("scheduling start notification ${scheduleItem}")
                             scheduleItems.triggerStartNotification.push(scheduleItem)
                         }
@@ -1112,9 +1112,7 @@ def composeNotification(fromFunction, msg, itemID) {
     if (msg.indexOf("%") > -1) {
         def pattern = /(?<=%).*?(?=%)/
         def items = atomicState.item
-        if (settings.includeAllItems == false) {
-            items = [items[0]]
-        } else if (itemID) {
+        if (itemID) {
             def tempItem = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
             def itemIndex = items.indexOf(tempItem)
             def tempItems = []
@@ -1122,6 +1120,9 @@ def composeNotification(fromFunction, msg, itemID) {
                 tempItems.push(items[t])
             }
             items = tempItems
+        }
+        if (settings.includeAllItems == false) {
+            items = [items[0]]
         }
         def msgList = []
         for (int i = 0; i < items.size(); i++) {
