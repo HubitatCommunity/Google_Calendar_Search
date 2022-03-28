@@ -740,42 +740,58 @@ def runAdditionalActions(items) {
                 triggerStartRule : [],
                 triggerEndRule : []
             ]
+            
             for (int i = 0; i < items.size(); i++) {
-                item = items[i]
+                def item = items[i]
+                
+                //Validate item...
+                
+                //If no items are found, scheduleStartTime is not included in the object
+                if (!item.containsKey("scheduleStartTime")) {
+                    continue
+                }
+                
+                //To prevent duplicate additional actions on the first item check to make sure current time is after the first item
+                if (i == 0 && now() > item.scheduleStartTime.getTime()) {
+                    continue
+                }
+                
                 def scheduleItem = [:]
+                scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
+                scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                if (item.scheduleEndTime && item.scheduleEndTime != null) {
+                    scheduleItem.end = item.scheduleEndTime
+                }
+                
+                //Check to make sure that the first item found's end date is greater than other items found to schedule additional actions
+                if (i > 0 && items.size() > 0 && items[i-1] != null) {
+                    def firstItem = items[0]
+                    if (item.containsKey("scheduleEndTime") && scheduleItem.time > firstItem.scheduleEndTime) {
+                        logMsg.push("skipping, scheduleItem.time(${scheduleItem.time}) > firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
+                        continue
+                    } else {
+                        logMsg.push("continuing, scheduleItem.time(${scheduleItem.time}) < firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
+                    }
+                }
+                
                 if (settings.controlSwitches != true || settings.controlSwitchList == null) {
                     logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
                 } else {
-                    if (item.scheduleStartTime && item.scheduleStartTime != null) {
-                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                        scheduleItem.time = scheduleStartTime
-                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
-                        logMsg.push("scheduling switch control actions ${scheduleItem}")
-                        scheduleItems.triggerSwitchControl.push(scheduleItem)
-                    }
+                    logMsg.push("scheduling switch control actions ${scheduleItem}")
+                    scheduleItems.triggerSwitchControl.push(scheduleItem)
                     atomicState.matchSwitches = gatherControlSwitches(item)
                 }
 
                 if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
                     logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
                 } else {
-                    if (item.scheduleStartTime && item.scheduleStartTime != null && settings.notificationStartMsg != null) {
-                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                        scheduleItem.time = scheduleStartTime
-                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
-                        if (item.scheduleEndTime && item.scheduleEndTime != null) {
-                            scheduleItem.end = item.scheduleEndTime
-                        }
-                        if ((i == 0 && now() <= item.scheduleStartTime.getTime()) || (settings.sequentialEvent != true && scheduleItems.triggerStartNotification.size() > 0 && scheduleItems.triggerStartNotification[i-1]!= null && scheduleItems.triggerStartNotification[i-1].end && scheduleStartTime <= scheduleItems.triggerStartNotification[i-1].end)) {
-                            //if (i != 0) log.info "index: ${i-1}, item-1: ${scheduleItems.triggerStartNotification[i-1]}, scheduleItem: ${scheduleItem}"
-                            logMsg.push("scheduling start notification ${scheduleItem}")
-                            scheduleItems.triggerStartNotification.push(scheduleItem)
-                        }
+                    if (settings.notificationStartMsg != null) {
+                        logMsg.push("scheduling start notification ${scheduleItem}")
+                        scheduleItems.triggerStartNotification.push(scheduleItem)
                     }
 
-                    if (searchType == "Calendar Event" && item.scheduleEndTime && item.scheduleEndTime != null && settings.notificationEndMsg != null) {
+                    if (searchType == "Calendar Event" && item.containsKey("scheduleEndTime") && settings.notificationEndMsg != null) {
                         scheduleItem.time = item.scheduleEndTime
-                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                         logMsg.push("scheduling end notification ${scheduleItem}")
                         scheduleItems.triggerEndNotification.push(scheduleItem)
                     }
@@ -784,22 +800,11 @@ def runAdditionalActions(items) {
                 if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
                     logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
                 } else {
-                    if (item.scheduleStartTime && item.scheduleStartTime != null) {
-                        def scheduleStartTime = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                        scheduleItem.time = scheduleStartTime
-                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
-                        if (item.scheduleEndTime && item.scheduleEndTime != null) {
-                            scheduleItem.end = item.scheduleEndTime
-                        }
-                        if (i == 0 || (settings.sequentialEvent != true && scheduleItems.triggerStartRule.size() > 0 && scheduleItems.triggerStartRule[i-1].end && scheduleStartTime <= scheduleItems.triggerStartRule[i-1].end)) {
-                            logMsg.push("scheduling start rule actions ${scheduleItem}")
-                            scheduleItems.triggerStartRule.push(scheduleItem)
-                        }
-                    }
+                    logMsg.push("scheduling start rule actions ${scheduleItem}")
+                    scheduleItems.triggerStartRule.push(scheduleItem)
 
-                    if (searchType == "Calendar Event" && item.scheduleEndTime && item.scheduleEndTime != null) {
+                    if (searchType == "Calendar Event" && item.containsKey("scheduleEndTime")) {
                         scheduleItem.time = item.scheduleEndTime
-                        scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                         logMsg.push("scheduling end rule actions ${scheduleItem}")
                         scheduleItems.triggerEndRule.push(scheduleItem)
                     }
@@ -1249,6 +1254,7 @@ def compareItem(items) {
     }
     
     return answer
+    //return false
 }
 
 def formatDateTime(dateTime) {
