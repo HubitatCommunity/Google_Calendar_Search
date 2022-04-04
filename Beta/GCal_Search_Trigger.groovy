@@ -1042,12 +1042,18 @@ def gatherControlSwitches(item) {
 
 def triggerSwitchControl(Map data=null) {
     def itemID = data.id
-    def logMsg = ["triggerSwitchControl - "]
+    def items = atomicState.item
+    def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
+    def matchSwitches = [:]
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerSwitchControl") && !item.additionalActions.triggerSwitchControl.matchSwitches.isEmpty()) {
+        matchSwitches = item.additionalActions.triggerSwitchControl.matchSwitches
+    }
+    def logMsg = ["triggerSwitchControl - itemID: ${itemID}, item: ${item}, matchSwitches: ${matchSwitches}"]
     def logInfoMsg = []
-    if (state.matchSwitches.on) {
+    if (matchSwitches.on) {
         def onSwitches = []
-        for (int i = 0; i < state.matchSwitches.on.size(); i++) {
-            def device = settings.controlSwitchList?.find{it.id == state.matchSwitches.on[i].id}
+        for (int i = 0; i < matchSwitches.on.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == matchSwitches.on[i].id}
             logMsg.push("turning on ${device.name}")
             onSwitches.push(device.name)
             device?.on()
@@ -1056,10 +1062,10 @@ def triggerSwitchControl(Map data=null) {
             logInfoMsg.push("turning on: " + onSwitches.join(", "))
         }
     }
-    if (state.matchSwitches.off) {
+    if (matchSwitches.off) {
         def offSwitches = []
-        for (int i = 0; i < state.matchSwitches.off.size(); i++) {
-            def device = settings.controlSwitchList?.find{it.id == state.matchSwitches.off[i].id}
+        for (int i = 0; i < matchSwitches.off.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == matchSwitches.off[i].id}
             logMsg.push("turning off ${device.name}")
             offSwitches.push(device.name)
             device?.off()
@@ -1164,20 +1170,22 @@ def updateItemState(itemID, actionName) {
     def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
     def itemIndex = items.indexOf(item)
     
-    if (actionName == "triggerSwitchControl") {
-        if (item.additionalActions[actionName] instanceof HashMap) {
-            item.additionalActions[actionName].status = "processed"
+    if (item != null && item.containsKey("additionalActions") && item.additionalActions.containsKey(actionName)) {
+        if (actionName == "triggerSwitchControl") {
+            if (item.additionalActions[actionName] instanceof HashMap) {
+                item.additionalActions[actionName].status = "processed"
+            } else {
+                def triggerSwitchControl = [:]
+                triggerSwitchControl.status = "processed"
+                item.additionalActions[actionName] = triggerSwitchControl
+            }
         } else {
-            def triggerSwitchControl = [:]
-            triggerSwitchControl.status = "processed"
-            item.additionalActions[actionName] = triggerSwitchControl
+            item.additionalActions[actionName] = "processed"
         }
-    } else {
-        item.additionalActions[actionName] = "processed"
+
+        items[itemIndex] = item
+        atomicState.item = items
     }
-    
-    items[itemIndex] = item
-    atomicState.item = items
 }
 
 def triggerEndNotification(Map data=null) {
@@ -1334,9 +1342,7 @@ def compareItem(items) {
         }
     }
     
-    return false
-    //return answer
-    
+    return answer
 }
 
 def compare2Items(current, previous) {
@@ -1537,6 +1543,11 @@ def upgradeSettings() {
     if (state.item && state.item instanceof HashMap) {
         //upgrade state.item to an array
         atomicState.item = [atomicState.item]
+        upgraded = true
+    }
+    
+    if (state.containsKey("matchSwitches")) {
+        app.removeSetting("matchSwitches")
         upgraded = true
     }
     
