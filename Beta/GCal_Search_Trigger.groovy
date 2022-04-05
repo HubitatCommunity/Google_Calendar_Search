@@ -364,6 +364,7 @@ def installed() {
 def updated() {
 	unschedule()
     initialize()
+    atomicState.item = null
     poll()
 }
 
@@ -739,9 +740,12 @@ def runAdditionalActions(items) {
     if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true) {
         logMsg.push("No additional actions to run")
     } else {
+        def previousItems = atomicState.item
+        logMsg.push("previousItems: ${previousItems}")
         def itemSame = compareItem(items)
         logMsg.push("itemSame: ${itemSame}")
         if (itemSame == true) {        
+            items = previousItems
             logMsg.push("no item changes, skipping additional actions")
         } else {
             def additionalActions = [:]
@@ -753,7 +757,6 @@ def runAdditionalActions(items) {
                 triggerEndRule : []
             ]
             
-            def previousItems = atomicState.item
             for (int i = 0; i < items.size(); i++) {
                 def item = items[i]
                 
@@ -765,27 +768,44 @@ def runAdditionalActions(items) {
                 
                 def previousItem = (previousItems.toString().indexOf("eventID") > -1) ? previousItems.find{it.eventID == item.eventID} : previousItems.find{it.taskID == item.taskID}
                 def itemCompare = compare2Items(item, previousItem)
-                
-                //To prevent duplicate additional actions on the first item check to make sure current time is after the first item
-                if (i == 0 && now() > item.scheduleStartTime.getTime() && itemCompare.same && itemCompare.allProcessed) {
-                    logMsg.push("item hasn't changed and additional actions already processed, skipping additional actions")
-                    item.additionalActions = previousItem.additionalActions
-                    items[i] = item
-                    continue
+                def scheduleItem = [:]
+                scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? new Date(now() + (1000 * 10).toLong()) : item.scheduleStartTime
+                scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
+                if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
+                    scheduleItem.end = item.scheduleEndTime
                 }
                 
-                def scheduleItem = [:]
-                scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? new Date() : item.scheduleStartTime
-                scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
-                if (item.scheduleEndTime && item.scheduleEndTime != null) {
-                    scheduleItem.end = item.scheduleEndTime
+                if (itemCompare.same) {
+                    additionalActions = [:]
+                    if (itemCompare.allProcessed) {
+                        logMsg.push("item hasn't changed and additional actions already processed, skipping additional actions")
+                        additionalActions = previousItem.additionalActions
+                    } else {
+                        for (int c = 0; c < itemCompare.processed.size(); c++) {
+                            def processedItem = itemCompare.processed[c]
+                            additionalActions[processedItem] = previousItem.additionalActions[processedItem]
+                            logMsg.push("${processedItem} already processed ${scheduleItem}")
+                        }
+
+                        for (int c = 0; c < itemCompare.scheduled.size(); c++) {
+                            def scheduledItem = itemCompare.scheduled[c]
+                            scheduleItems[scheduledItem].push(scheduleItem)
+                            additionalActions[scheduledItem] = previousItem.additionalActions[scheduledItem]
+                            logMsg.push("rescheduling ${scheduledItem} ${scheduleItem}")
+                        }
+                    }
+                    if (!additionalActions.isEmpty()) {
+                        item.additionalActions = additionalActions
+                        items[i] = item
+                    }
+                    continue
                 }
                 
                 //Check to make sure that the first item found's end date is greater than other items found to schedule additional actions
                 if (i > 0 && items.size() > 0 && items[i-1] != null) {
                     def firstItem = items[0]
                     if (item.containsKey("scheduleEndTime") && scheduleItem.time > firstItem.scheduleEndTime) {
-                        logMsg.push("skipping, scheduleItem.time(${scheduleItem.time}) > firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
+                        logMsg.push("skipping, scheduleItem.id: ${scheduleItem.id}, scheduleItem.time(${scheduleItem.time}) > firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
                         continue
                     } else {
                         logMsg.push("continuing, scheduleItem.time(${scheduleItem.time}) < firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
@@ -796,15 +816,6 @@ def runAdditionalActions(items) {
                 
                 if (settings.controlSwitches != true || settings.controlSwitchList == null) {
                     logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
-                } else if (itemCompare.same && itemCompare.processed.indexOf("triggerSwitchControl") > -1) {
-                    logMsg.push("switch control already processed ${scheduleItem}")
-                    if (additionalActions.triggerSwitchControl instanceof HashMap) {
-                        additionalActions.triggerSwitchControl.status = "processed"
-                    } else {
-                        def triggerSwitchControl = [:]
-                        triggerSwitchControl.status = "processed"
-                        additionalActions.triggerSwitchControl = triggerSwitchControl
-                    }
                 } else {
                     logMsg.push("scheduling switch control actions ${scheduleItem}")
                     scheduleItems.triggerSwitchControl.push(scheduleItem)
@@ -816,12 +827,6 @@ def runAdditionalActions(items) {
                 
                 if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
                     logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
-                } else if (itemCompare.same && itemCompare.processed.indexOf("triggerStartNotification") > -1) {
-                    logMsg.push("notification already processed ${scheduleItem}")
-                    additionalActions.triggerStartNotification = "processed"
-                    if (itemCompare.processed.indexOf("triggerEndNotification") > -1) {
-                        additionalActions.triggerEndNotification = "processed"
-                    }
                 } else {
                     if (settings.notificationStartMsg != null) {
                         logMsg.push("scheduling start notification ${scheduleItem}")
@@ -829,8 +834,7 @@ def runAdditionalActions(items) {
                         additionalActions.triggerStartNotification = "scheduled"
                     }
 
-                    if (searchType == "Calendar Event" && item.containsKey("scheduleEndTime") && settings.notificationEndMsg != null) {
-                        scheduleItem.time = item.scheduleEndTime
+                    if (searchType == "Calendar Event" && settings.notificationEndMsg != null && scheduleItem.containsKey("end")) {
                         logMsg.push("scheduling end notification ${scheduleItem}")
                         scheduleItems.triggerEndNotification.push(scheduleItem)
                         additionalActions.triggerEndNotification = "scheduled"
@@ -839,19 +843,12 @@ def runAdditionalActions(items) {
 
                 if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
                     logMsg.push("runRuleActions: ${settings.runRuleActions}, not evaluating rule")
-                } else if (itemCompare.same && itemCompare.processed.indexOf("triggerStartRule") > -1) {
-                    logMsg.push("notification already processed ${scheduleItem}")
-                    additionalActions.triggerStartRule = "processed"
-                    if (itemCompare.processed.indexOf("triggerEndRule") > -1) {
-                        additionalActions.triggerEndRule = "processed"
-                    }
                 } else {
                     logMsg.push("scheduling start rule actions ${scheduleItem}")
                     scheduleItems.triggerStartRule.push(scheduleItem)
                     additionalActions.triggerStartRule = "scheduled"
 
-                    if (searchType == "Calendar Event" && item.containsKey("scheduleEndTime")) {
-                        scheduleItem.time = item.scheduleEndTime
+                    if (searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
                         logMsg.push("scheduling end rule actions ${scheduleItem}")
                         scheduleItems.triggerEndRule.push(scheduleItem)
                         additionalActions.triggerEndRule = "scheduled"
@@ -874,7 +871,8 @@ def runAdditionalActions(items) {
                 
                 for (int v = 0; v < values.size(); v++) {
                     def value = values[v]
-                    runOnce(value.time, key, [overwrite: false, data: ["id": value.id]])
+                    def scheduleTime = (key.indexOf("End") > -1 && value.containsKey("end")) ? value.end : value.time
+                    runOnce(scheduleTime, key, [overwrite: false, data: ["id": value.id]])
                 }
             }
         }
@@ -1169,8 +1167,14 @@ def updateItemState(itemID, actionName) {
     def items = atomicState.item
     def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
     def itemIndex = items.indexOf(item)
+    def logMsg = ["updateItemState - items: ${items}, itemIndex: ${itemIndex},\nitem BEFORE: ${item}"]
     
-    if (item != null && item.containsKey("additionalActions") && item.additionalActions.containsKey(actionName)) {
+    //if (item != null && item.containsKey("additionalActions") && item.additionalActions.containsKey(actionName)) {
+    if (item != null) {
+        if (item.additionalActions == null) {
+            item.additionalActions = [:]
+        }
+        
         if (actionName == "triggerSwitchControl") {
             if (item.additionalActions[actionName] instanceof HashMap) {
                 item.additionalActions[actionName].status = "processed"
@@ -1182,10 +1186,14 @@ def updateItemState(itemID, actionName) {
         } else {
             item.additionalActions[actionName] = "processed"
         }
-
+        
+        logMsg.push("\nitem AFTER: ${item}")
         items[itemIndex] = item
         atomicState.item = items
+        logMsg.push("\nitems AFTER: ${items}")
     }
+    
+    logDebug("${logMsg}")
 }
 
 def triggerEndNotification(Map data=null) {
@@ -1349,7 +1357,8 @@ def compare2Items(current, previous) {
     def answer = [
         same: false,
         allProcessed: false,
-        processed: []
+        processed: [],
+        scheduled: []
     ]
     
     if (current != null && previous != null) {
@@ -1384,6 +1393,9 @@ def compare2Items(current, previous) {
                 if (value == "processed") {
                     compareValues.push(true)
                     answer.processed.push(key)
+                } else if (value == "scheduled") {
+                    compareValues.push(false)
+                    answer.scheduled.push(key)
                 } else {
                     compareValues.push(false)
                 }
