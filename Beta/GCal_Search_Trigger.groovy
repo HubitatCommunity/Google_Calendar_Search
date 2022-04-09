@@ -796,7 +796,7 @@ def runAdditionalActions(items) {
                     }
                 }
                 
-                if (itemCompare.same) {
+                if (itemCompare.same && itemCompare.processed.size() > 0 && itemCompare.scheduled.size() > 0) {
                     additionalActions = [:]
                     if (itemCompare.allProcessed) {
                         logMsg.push("item hasn't changed and additional actions already processed, skipping additional actions")
