@@ -757,6 +757,9 @@ def runAdditionalActions(items) {
                 triggerEndRule : []
             ]
             
+            //Gather start and end times in case there are overlapping meetings
+            def startTime, endTime
+            
             for (int i = 0; i < items.size(); i++) {
                 def item = items[i]
                 
@@ -773,6 +776,24 @@ def runAdditionalActions(items) {
                 scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                 if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
                     scheduleItem.end = item.scheduleEndTime
+                }
+                
+                if (startTime == null) {
+                    startTime = scheduleItem.time
+                }
+                
+                //Check to make sure that the first item found's end date is greater than other items found to schedule additional actions
+                if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
+                    if (endTime == null) {
+                        endTime = item.scheduleEndTime
+                    } else if (startTime == scheduleItem.time && endTime > scheduleItem.time) {
+                        endTime = item.scheduleEndTime
+                    } else if (endTime > scheduleItem.time) {
+                        logMsg.push("continuing, endTime(${endTime}) > scheduleItem.time(${scheduleItem.time})")
+                    } else {
+                        logMsg.push("skipping, scheduleItem.time(${scheduleItem.time}) > endTime(${endTime})")
+                        continue
+                    }
                 }
                 
                 if (itemCompare.same) {
@@ -799,17 +820,6 @@ def runAdditionalActions(items) {
                         items[i] = item
                     }
                     continue
-                }
-                
-                //Check to make sure that the first item found's end date is greater than other items found to schedule additional actions
-                if (i > 0 && items.size() > 0 && items[i-1] != null) {
-                    def firstItem = items[0]
-                    if (item.containsKey("scheduleEndTime") && scheduleItem.time > firstItem.scheduleEndTime) {
-                        logMsg.push("skipping, scheduleItem.id: ${scheduleItem.id}, scheduleItem.time(${scheduleItem.time}) > firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
-                        continue
-                    } else {
-                        logMsg.push("continuing, scheduleItem.time(${scheduleItem.time}) < firstItem.scheduleEndTime(${firstItem.scheduleEndTime})")
-                    }
                 }
                 
                 additionalActions = [:]
