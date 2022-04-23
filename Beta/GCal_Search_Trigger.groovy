@@ -1,4 +1,4 @@
-def appVersion() { return "3.3.1" }
+def appVersion() { return "3.3.1.14" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -759,7 +759,7 @@ def runAdditionalActions(items) {
             
             //Gather start and end times in case there are overlapping meetings
             def startTime, endTime
-            
+            def nowTime = new Date(now() + (1000 * 10).toLong())
             for (int i = 0; i < items.size(); i++) {
                 def item = items[i]
                 
@@ -772,7 +772,7 @@ def runAdditionalActions(items) {
                 def previousItem = (previousItems.toString().indexOf("eventID") > -1) ? previousItems.find{it.eventID == item.eventID} : previousItems.find{it.taskID == item.taskID}
                 def itemCompare = compare2Items(item, previousItem)
                 def scheduleItem = [:]
-                scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? new Date(now() + (1000 * 10).toLong()) : item.scheduleStartTime
+                scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? nowTime : item.scheduleStartTime
                 scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                 if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
                     scheduleItem.end = item.scheduleEndTime
@@ -796,7 +796,7 @@ def runAdditionalActions(items) {
                     }
                 }
                 
-                if (itemCompare.same && itemCompare.processed.size() > 0 && itemCompare.scheduled.size() > 0) {
+                if (itemCompare.same && (itemCompare.processed.size() > 0 || itemCompare.scheduled.size() > 0)) {
                     additionalActions = [:]
                     if (itemCompare.allProcessed) {
                         logMsg.push("item hasn't changed and additional actions already processed, skipping additional actions")
@@ -872,22 +872,101 @@ def runAdditionalActions(items) {
                 }
             }
             
-            logMsg.push("scheduleItems: ${scheduleItems}")
             def scheduleKeys = scheduleItems.keySet()
             for (int k = 0; k < scheduleKeys.size(); k++) {
                 def key = scheduleKeys[k]
+                if (key == "scheduler") continue
+                
                 def values = scheduleItems[key]
-                unschedule(key)
+                //unschedule(key)
+                unschedule("triggerAdditionalAction")
                 
                 for (int v = 0; v < values.size(); v++) {
                     def value = values[v]
                     def scheduleTime = (key.indexOf("End") > -1 && value.containsKey("end")) ? value.end : value.time
-                    runOnce(scheduleTime, key, [overwrite: false, data: ["id": value.id]])
+                    if (!scheduleItems.containsKey("scheduler")) {
+                        scheduleItems.scheduler = [:]
+                    }
+                    def scheduler = [
+                        actionName: key,
+                        id: value.id
+                    ]
+                    if (scheduleItems.scheduler.containsKey(scheduleTime)) {
+                        scheduleItems.scheduler[scheduleTime].push(scheduler)
+                    } else {
+                        scheduleItems.scheduler[scheduleTime] = [scheduler]
+                    }
+                }
+            }
+            logMsg.push("scheduleItems: ${scheduleItems}")
+            
+            if (scheduleItems.containsKey("scheduler")) {
+                scheduleKeys = scheduleItems.scheduler.keySet()
+                for (int k = 0; k < scheduleKeys.size(); k++) {
+                    def key = scheduleKeys[k]
+                    def scheduleTime = scheduleKeys[k]
+                    def schedulerDetails = (scheduleItems.scheduler[key] instanceof Map) ? [scheduleItems.scheduler[key]] : scheduleItems.scheduler[key]
+                    //runOnce(scheduleTime, key, [overwrite: false, data: ["id": value.id]])
+                    runOnce(scheduleTime, triggerAdditionalAction, [overwrite: false, data: schedulerDetails])
                 }
             }
         }
     }
     
+    atomicState.item = items
+    logDebug("${logMsg}")
+}
+
+def triggerAdditionalAction(ArrayList data=[]) {
+    def logMsg = ["triggerAdditionalAction - data: ${data}\n"]
+    def items = atomicState.item
+    for (int i = 0; i < data.size(); i++) {
+        def actionName = data[i].actionName
+        def itemID = data[i].id
+        def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
+        def itemIndex = items.indexOf(item)
+        logMsg.push("\nactionName: ${actionName}, item BEFORE: ${item}")
+        
+        switch (actionName) {
+            case "triggerSwitchControl":
+                triggerSwitchControl(itemID)
+                break
+            case "triggerStartNotification":
+                triggerStartNotification(itemID)
+                break
+            case "triggerEndNotification":
+                triggerEndNotification(itemID)
+                break
+            case "triggerStartRule":
+                triggerStartRule(itemID)
+                break
+            case "triggerEndRule":
+                triggerEndRule(itemID)
+                break
+        }
+        
+        if (item != null) {
+            if (item.additionalActions == null) {
+                item.additionalActions = [:]
+            }
+
+            if (actionName == "triggerSwitchControl") {
+                if (item.additionalActions[actionName] instanceof HashMap) {
+                    item.additionalActions[actionName].status = "processed"
+                } else {
+                    def triggerSwitchControl = [:]
+                    triggerSwitchControl.status = "processed"
+                    item.additionalActions[actionName] = triggerSwitchControl
+                }
+            } else {
+                item.additionalActions[actionName] = "processed"
+            }
+
+            logMsg.push("\nitem AFTER: ${item}")
+            items[itemIndex] = item
+        }
+    }
+    logMsg.push("\nitems AFTER: ${items}")
     atomicState.item = items
     logDebug("${logMsg}")
 }
@@ -1048,8 +1127,9 @@ def gatherControlSwitches(item) {
     return answer
 }
 
-def triggerSwitchControl(Map data=null) {
-    def itemID = data.id
+//def triggerSwitchControl(Map data=null) {
+    //def itemID = data.id
+def triggerSwitchControl(itemID) {
     def items = atomicState.item
     def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
     def matchSwitches = [:]
@@ -1087,7 +1167,7 @@ def triggerSwitchControl(Map data=null) {
         getNextItems()
         logInfoMsg.push("${settings.searchType.toLowerCase()} completed")
     }
-    updateItemState(itemID, "triggerSwitchControl") 
+    //updateItemState(itemID, "triggerSwitchControl") 
     
     logMsg.push("${settings.searchType} completed: ${itemCompleted}")
     logDebug("${logMsg}")
@@ -1166,10 +1246,11 @@ def matchItem(items, caseSensitive, searchTerms, searchField) {
     return tempItems
 }
 
-def triggerStartNotification(Map data=null) {
-    def itemID = data.id
+//def triggerStartNotification(Map data=null) {
+    //def itemID = data.id
+def triggerStartNotification(itemID) {
     def msg = settings.notificationStartMsg
-    updateItemState(itemID, "triggerStartNotification") 
+    //updateItemState(itemID, "triggerStartNotification") 
     composeNotification("Start Notification", msg, itemID)
 }
 
@@ -1206,14 +1287,15 @@ def updateItemState(itemID, actionName) {
     logDebug("${logMsg}")
 }
 
-def triggerEndNotification(Map data=null) {
+//def triggerEndNotification(Map data=null) {
+def triggerEndNotification(itemID) {
     if (settings.sendNotification != true || settings.notificationEndMsg == null || (settings.notificationDevices == null && settings.speechDevices == null)) {
         return
     }
     
-    def itemID = data.id
+    //def itemID = data.id
     def msg = settings.notificationEndMsg
-    updateItemState(itemID, "triggerEndNotification") 
+    //updateItemState(itemID, "triggerEndNotification") 
     composeNotification("End Notification", msg, itemID)
 }
 
@@ -1295,26 +1377,28 @@ def gatherSwitchNames(item, key) {
     return answer
 }
 
-def triggerStartRule(Map data=null) {
-    def itemID = data.id
+//def triggerStartRule(Map data=null) {
+    //def itemID = data.id
+def triggerStartRule(itemID) {
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanTrue")
     }
     runRMAPI("runRuleAct")
-    updateItemState(itemID, "triggerStartRule") 
+    //updateItemState(itemID, "triggerStartRule") 
 }
 
-def triggerEndRule(Map data=null) {
+//def triggerEndRule(Map data=null) {
+def triggerEndRule(itemID) {
     if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
         return
     }
     
-    def itemID = data.id
+    //def itemID = data.id
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
     runRMAPI("runRuleAct")
-    updateItemState(itemID, "triggerEndRule") 
+    //updateItemState(itemID, "triggerEndRule") 
 }
 
 def runRMAPI(action) {
