@@ -878,7 +878,6 @@ def runAdditionalActions(items) {
                 if (key == "scheduler") continue
                 
                 def values = scheduleItems[key]
-                //unschedule(key)
                 unschedule("triggerAdditionalAction")
                 
                 for (int v = 0; v < values.size(); v++) {
@@ -906,19 +905,19 @@ def runAdditionalActions(items) {
                     def key = scheduleKeys[k]
                     def scheduleTime = scheduleKeys[k]
                     def schedulerDetails = (scheduleItems.scheduler[key] instanceof Map) ? [scheduleItems.scheduler[key]] : scheduleItems.scheduler[key]
-                    //runOnce(scheduleTime, key, [overwrite: false, data: ["id": value.id]])
                     runOnce(scheduleTime, triggerAdditionalAction, [overwrite: false, data: schedulerDetails])
                 }
             }
         }
     }
     
+    logMsg.push("\nAFTER items:\n${items}")
     atomicState.item = items
     logDebug("${logMsg}")
 }
 
 def triggerAdditionalAction(ArrayList data=[]) {
-    def logMsg = ["triggerAdditionalAction - data: ${data}\n"]
+    def logMsg = ["triggerAdditionalAction - data: ${data}"]
     def items = atomicState.item
     for (int i = 0; i < data.size(); i++) {
         def actionName = data[i].actionName
@@ -966,7 +965,8 @@ def triggerAdditionalAction(ArrayList data=[]) {
             items[itemIndex] = item
         }
     }
-    logMsg.push("\nitems AFTER: ${items}")
+    
+    logMsg.push("\nAFTER items:\n${items}")
     atomicState.item = items
     logDebug("${logMsg}")
 }
@@ -1127,8 +1127,6 @@ def gatherControlSwitches(item) {
     return answer
 }
 
-//def triggerSwitchControl(Map data=null) {
-    //def itemID = data.id
 def triggerSwitchControl(itemID) {
     def items = atomicState.item
     def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
@@ -1167,7 +1165,6 @@ def triggerSwitchControl(itemID) {
         getNextItems()
         logInfoMsg.push("${settings.searchType.toLowerCase()} completed")
     }
-    //updateItemState(itemID, "triggerSwitchControl") 
     
     logMsg.push("${settings.searchType} completed: ${itemCompleted}")
     logDebug("${logMsg}")
@@ -1246,56 +1243,17 @@ def matchItem(items, caseSensitive, searchTerms, searchField) {
     return tempItems
 }
 
-//def triggerStartNotification(Map data=null) {
-    //def itemID = data.id
 def triggerStartNotification(itemID) {
     def msg = settings.notificationStartMsg
-    //updateItemState(itemID, "triggerStartNotification") 
     composeNotification("Start Notification", msg, itemID)
 }
 
-def updateItemState(itemID, actionName) {
-    def items = atomicState.item
-    def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
-    def itemIndex = items.indexOf(item)
-    def logMsg = ["updateItemState - items: ${items}, itemIndex: ${itemIndex},\nitem BEFORE: ${item}"]
-    
-    //if (item != null && item.containsKey("additionalActions") && item.additionalActions.containsKey(actionName)) {
-    if (item != null) {
-        if (item.additionalActions == null) {
-            item.additionalActions = [:]
-        }
-        
-        if (actionName == "triggerSwitchControl") {
-            if (item.additionalActions[actionName] instanceof HashMap) {
-                item.additionalActions[actionName].status = "processed"
-            } else {
-                def triggerSwitchControl = [:]
-                triggerSwitchControl.status = "processed"
-                item.additionalActions[actionName] = triggerSwitchControl
-            }
-        } else {
-            item.additionalActions[actionName] = "processed"
-        }
-        
-        logMsg.push("\nitem AFTER: ${item}")
-        items[itemIndex] = item
-        atomicState.item = items
-        logMsg.push("\nitems AFTER: ${items}")
-    }
-    
-    logDebug("${logMsg}")
-}
-
-//def triggerEndNotification(Map data=null) {
 def triggerEndNotification(itemID) {
     if (settings.sendNotification != true || settings.notificationEndMsg == null || (settings.notificationDevices == null && settings.speechDevices == null)) {
         return
     }
     
-    //def itemID = data.id
     def msg = settings.notificationEndMsg
-    //updateItemState(itemID, "triggerEndNotification") 
     composeNotification("End Notification", msg, itemID)
 }
 
@@ -1377,28 +1335,22 @@ def gatherSwitchNames(item, key) {
     return answer
 }
 
-//def triggerStartRule(Map data=null) {
-    //def itemID = data.id
 def triggerStartRule(itemID) {
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanTrue")
     }
     runRMAPI("runRuleAct")
-    //updateItemState(itemID, "triggerStartRule") 
 }
 
-//def triggerEndRule(Map data=null) {
 def triggerEndRule(itemID) {
     if (settings.runRuleActions != true || (settings.legacyRule == null && settings.currentRule == null)) {
         return
     }
     
-    //def itemID = data.id
     if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
     runRMAPI("runRuleAct")
-    //updateItemState(itemID, "triggerEndRule") 
 }
 
 def runRMAPI(action) {
