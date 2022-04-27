@@ -1,12 +1,12 @@
 {
   "packageName": "Google Calendar Search",
   "author": "ritchierich",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "minimumHEVersion": "2.2.5.130",
-  "dateReleased": "2022-03-13",
+  "dateReleased": "2022-04-27",
   "documentationLink": "https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/README.md",
   "communityLink": "https://community.hubitat.com/t/release-google-calendar-search/71397",
-  "releaseNotes": "v3.3.0: Added 'Include details from all matching items?' preference for Additional Actions Notifications, added calendar event description to the child GCal Switch, improved code to prevent errors during version upgrades and clicking done on the parent GCal Search app is no longer required.\nv3.2.0:Added ability to dynamically control a defined list of switches from text within the Google Calendar event, task and reminder. For example: 'Turn off bedroom fan and turn on bedroom overhead lights, bedroom lamps, and bedroom tv' to turn off and on several switches, Added description text logging to child GCal switch, Additional error handling if OAuth hasn't been enabled on the parent GCal Search app\n\nv3.1.0: MAJOR UPDATE please read upgrade instructions: https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/Upgrade_Instructions.md\n\n* Complete rewrite of the OAuth code\n* Extended search capabilities to also include Google Tasks and Google Reminders\n* Child switch is now optional\n* Added Additional Actions to invoke Notifications and run Rule Machine actions directly from a search trigger",  "apps": [
+  "releaseNotes": "v3.3.1: During a new install, the parent GCal Search app forces you to click Done so the app shows up in the installed app list. Enhanced the Additional Actions code to ensure that actions are scheduled at the correct times and aren't duplicated.\nv3.3.0: Added 'Include details from all matching items?' preference for Additional Actions Notifications, added calendar event description to the child GCal Switch, improved code to prevent errors during version upgrades and clicking done on the parent GCal Search app is no longer required.\nv3.2.0:Added ability to dynamically control a defined list of switches from text within the Google Calendar event, task and reminder. For example: 'Turn off bedroom fan and turn on bedroom overhead lights, bedroom lamps, and bedroom tv' to turn off and on several switches, Added description text logging to child GCal switch, Additional error handling if OAuth hasn't been enabled on the parent GCal Search app\n\nv3.1.0: MAJOR UPDATE please read upgrade instructions: https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/Upgrade_Instructions.md\n\n* Complete rewrite of the OAuth code\n* Extended search capabilities to also include Google Tasks and Google Reminders\n* Child switch is now optional\n* Added Additional Actions to invoke Notifications and run Rule Machine actions directly from a search trigger",  "apps": [
     {
       "id": "c202eb19-0d1d-44e7-b94c-c7d975a53db9",
       "name": "GCal Search",
