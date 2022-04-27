@@ -1,4 +1,4 @@
-def appVersion() { return "3.3.0" }
+def appVersion() { return "3.3.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -83,10 +83,19 @@ def mainPage() {
 }
 
 def authenticationPage() {
-    dynamicPage(name: "authenticationPage", uninstall: false, nextPage: "mainPage") {
+    def isOAuthEnabled = oauthEnabled()
+    def readyToInstall = false
+    def isAuthorized = false
+    if (isOAuthEnabled) {
+        isAuthorized = authTokenValid("authenticationPage")
+        if (isAuthorized && !atomicState.version) {
+            readyToInstall = true
+        }
+    }
+    
+    dynamicPage(name: "authenticationPage", install: readyToInstall, uninstall: false, nextPage: "mainPage") {
         section("${getFormat("box", "Google Authentication")}") {
-            if (oauthEnabled()) {
-                def isAuthorized = authTokenValid("authenticationPage")
+            if (isOAuthEnabled) {
                 // Make sure no leading or trailing spaces on gaClientID and gaClientSecret
                 if (settings.gaClientID && settings.gaClientID != settings.gaClientID.trim()) {
                     app.updateSetting("gaClientID",[type: "text", value: settings.gaClientID.trim()])
@@ -100,6 +109,9 @@ def authenticationPage() {
                     input "gaClientSecret", "text", title: "Google API Client Secret", required: true, submitOnChange: true
                 } else if (!isAuthorized) {
                     paragraph "${getFormat("warning", "Authentication Problem! Please click Reset Google Authentication and try the setup again.")}"
+                } else if (readyToInstall) {
+                    paragraph "${getFormat("text", "<strong>Authentication process complete!</strong>")}"
+                    paragraph "${getFormat("warning", "Click Done to complete the installation of this app.  Open the GCal Search app again to setup Google search triggers.")}"
                 } else {
                     paragraph "${getFormat("text", "<strong>Authentication process complete! Click Next to continue setup.</strong>")}"
                 }
@@ -629,6 +641,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             def eventDetails = [:]
             eventDetails.kind = event.kind
             //eventDetails.timeZone = events.timeZone
+            eventDetails.eventID = event.id
             eventDetails.eventTitle = event.summary.trim()
             eventDetails.eventLocation = event.location ? event.location : "none"
             eventDetails.eventDescription = event.description ? event.description : "none"
