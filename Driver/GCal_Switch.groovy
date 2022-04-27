@@ -1,4 +1,4 @@
-def driverVersion() { return "3.3.0" }
+def driverVersion() { return "3.3.1" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -94,7 +94,7 @@ def poll() {
                 state.kind = (value.indexOf("#") > -1) ? value.split("#")[1] : value
                 itemFound = true
                 continue
-            } else if (["scheduleStartTime", "scheduleEndTime", "recurrenceId"].indexOf(key) > -1) {
+            } else if (["scheduleStartTime", "scheduleEndTime", "recurrenceId", "eventID", "additionalActions"].indexOf(key) > -1) {
                 // Don't process these keys until later
                 itemFound = true
                 continue
