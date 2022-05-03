@@ -1,4 +1,4 @@
-def appVersion() { return "3.3.1" }
+def appVersion() { return "3.3.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -42,7 +42,7 @@ preferences {
 
 def mainPage() {
     return dynamicPage(name: "mainPage", title: "${parent.getFormat("title", "GCal Search Trigger Version ${appVersion()}, ${(state.installed == true) ? "Update" : "Create new"} search trigger")}", install: true, uninstall: true, nextPage: "" ) {
-    	section(){
+    	section() {
 			if (!state.isPaused) {
 				input name: "pauseButton", type: "button", title: "Pause", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
 			} else {
@@ -51,10 +51,12 @@ def mainPage() {
             if (state.refreshed) {
                 paragraph "Last Refreshed:\n${parseDateTime(state.refreshed)}", width: 4
             }
-            input name: "refreshButton", type: "button", title: "Refresh", width: 4, submitOnChange: true
+            if (!state.isPaused) {
+                input name: "refreshButton", type: "button", title: "Refresh", width: 4, submitOnChange: true
+            }
         }
         
-        section(){
+        section() {
             def nextItemDescription = getNextItemDescription()
             if (nextItemDescription) {
                 paragraph "${nextItemDescription}"
@@ -83,7 +85,7 @@ def mainPage() {
                     }
                 }
                 logDebug("mainPage - settings.searchType: ${settings.searchType}, scopesAuthorized: ${scopesAuthorized}")
-                if ( settings.searchType == "Calendar Event" ) {
+                if (settings.searchType == "Calendar Event") {
                     watchListOptions = parent.getCalendarList()
                     if (watchListOptions == "error") {
                         paragraph "${parent.getFormat("warning", "The Google Calendar API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/api/calendar-json.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
@@ -93,11 +95,11 @@ def mainPage() {
                         input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
                         input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
                         input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
-                        if ( settings.GoogleMatching == true) {
+                        if (settings.GoogleMatching == true) {
                             paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
                         }
                     }
-                } else if ( settings.searchType == "Task" ) {
+                } else if (settings.searchType == "Task") {
                     settings.GoogleMatching == null // Task API doesn't allow text searching
                     watchListOptions = parent.getTaskList()
                     if (watchListOptions == "error") {
@@ -110,7 +112,7 @@ def mainPage() {
                     logDebug("scopesAuthorized: ${scopesAuthorized}")
                     settings.GoogleMatching == null // Reminder API doesn't allow text searching
                 }
-                if ( settings.GoogleMatching == false || settings.GoogleMatching == null ) {
+                if (settings.GoogleMatching == false || settings.GoogleMatching == null) {
                     paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
                     input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
                 }
@@ -119,33 +121,33 @@ def mainPage() {
             }
         }
 
-        if ( settings.search ) {
+        if (settings.search) {
             section("${parent.getFormat("box", "Schedule Settings")}") {
                 paragraph "${parent.getFormat("text", "${settings.searchType} searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression.")}"
                 input name: "whenToRun", type: "enum", title: "When to Run", required: true, options:["Once Per Day", "Periodically"], submitOnChange: true
-                if ( settings.whenToRun == "Once Per Day" ) {
+                if (settings.whenToRun == "Once Per Day") {
                     input name: "timeToRun", type: "time", title: "Time to run", required: true
                 }
-                if ( settings.whenToRun == "Periodically" ) {
+                if (settings.whenToRun == "Periodically") {
                     input name: "frequency", type: "enum", title: "Frequency", required: true, options:["Hours", "Minutes", "Cron String"], submitOnChange: true
-                    if ( settings.frequency == "Hours" ) {
+                    if (settings.frequency == "Hours") {
                         input name: "hours", type: "number", title: "Every N Hours: (range 1-12)", range: "1..12", required: true, submitOnChange: true
                         input name: "hourlyTimeToRun", type: "time", title: "Starting at", defaultValue: "08:00", required: true
                     }
-                    if ( settings.frequency == "Minutes" ) {
+                    if (settings.frequency == "Minutes") {
                         input name: "minutes", type: "enum", title: "Every N Minutes", required: true, options:["1", "2", "3", "4", "5", "6", "10", "12", "15", "20", "30"], submitOnChange: true
                     }
-                    if ( settings.frequency == "Cron String" ) {
+                    if (settings.frequency == "Cron String") {
                         paragraph "${parent.getFormat("text", "If not familiar with Cron Strings, please visit <a href='https://www.freeformatter.com/cron-expression-generator-quartz.html#' target='_blank'>Cron Expression Generator</a>")}"
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
                 paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, events from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
                 input name: "endTimePref", type: "enum", title: "Search Range", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
-                if ( settings.endTimePref == "Number of Hours from Current Time" ) {
+                if (settings.endTimePref == "Number of Hours from Current Time") {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                 }
-                if ( settings.searchType == "Calendar Event" ) {
+                if (settings.searchType == "Calendar Event") {
                     paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling and additonal actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
                     input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                 }
@@ -153,9 +155,9 @@ def mainPage() {
                 input name: "delayToggle", type: "bool", title: "Delay toggle to event start?", defaultValue: true
                 paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an item is found in the future from the current time, scheduled triggers will be created to toggle the switch and trigger additional actions based on the item's start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the item date(s).  For example, if you wish for the switch to toggle or additional actions to trigger 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a task.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
-                if ( settings.setOffset == true ) {
+                if (settings.setOffset == true) {
                     input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
-                    if ( settings.searchType == "Calendar Event" ) {
+                    if (settings.searchType == "Calendar Event") {
                         input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
                     }
                 }
@@ -163,23 +165,23 @@ def mainPage() {
             }
         }
         
-        if ( settings.search ) {
+        if (settings.search) {
             section("${parent.getFormat("box", "Child Switch Preferences")}") {
                 paragraph "${parent.getFormat("text", "<u>Create child switch</u>: By default this app will create and toggle a child switch when an item matches the search criteria.  Many inbuilt apps have restrictions based on the state of a switch where the rule won't if say for example a particular switch is turned on.  In other use cases, a child switch may bring unnecessary overhead.  Choose what you wish to happen when an item matches the search criteria.")}"
                 input name: "createChildSwitch", type: "bool", title: "Create child switch?", defaultValue: true, required: false, submitOnChange: true
-                if ( settings.createChildSwitch != false ) {
+                if (settings.createChildSwitch != false) {
                     def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
                     input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                     paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no task. If a task is found, the switch will toggle from this value.")}"
                     input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "off", options:["on","off"]
                     paragraph "${parent.getFormat("text", "<u>Date Format</u>: Adjust this setting to your desired date format.  By default time format will be based on the hub's time format setting.  Choose other to enter your own custom date/time format.  Please see <a href='https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html' target='_blank'>this website</a> for examples.")}"
                     input name: "dateFormat", type: "enum", title: "Date Format", required: true, defaultValue: "yyyy-MM-dd", options:["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy", "Other"], submitOnChange: true
-                    if ( settings.dateFormat == "Other" ) {
+                    if (settings.dateFormat == "Other") {
                         input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
                     }
                     paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
                     input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
-                    if ( settings.controlOtherSwitches == true ) {
+                    if (settings.controlOtherSwitches == true) {
                         input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
                         input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
                     }
@@ -189,9 +191,9 @@ def mainPage() {
             section("${parent.getFormat("box", "Additional Action Preferences")}") {
                 paragraph "${parent.getFormat("text", "Notifications can be sent/spoken based on an item matching search criteria.")}"
                 input "sendNotification", "bool", title: "Send notifications?", defaultValue: false, submitOnChange: true
-                if ( settings.sendNotification == true ) {
+                if (settings.sendNotification == true) {
                     def startMsg, endMsg
-                    if ( settings.searchType == "Calendar Event" ) {
+                    if (settings.searchType == "Calendar Event") {
                         startMsg = "Custom message to send at event <u>scheduled start</u>"
                         endMsg = "Custom message to send at event <u>scheduled end</u>"
                     } else {
@@ -211,14 +213,14 @@ def mainPage() {
                 
                 paragraph "${parent.getFormat("text", "Rule Machine rules can be evaluated based on an item matching search criteria.")}"
                 input "runRuleActions", "bool", title: "Run Rule Machine actions?", defaultValue: false, submitOnChange: true
-                if ( settings.runRuleActions == true ) {
+                if (settings.runRuleActions == true) {
                     def legacyRules = RMUtils.getRuleList()
                     if (legacyRules != null) {
                         input "legacyRule", "enum", title: "Select which Rule Machine Legacy rules to run", options: legacyRules, multiple: true
                     }
                     def currentRules = RMUtils.getRuleList('5.0')
                     input "currentRule", "enum", title: "Select which rules to run", options: currentRules, multiple: true
-                    if ( settings.searchType == "Calendar Event" ) {
+                    if (settings.searchType == "Calendar Event") {
                         paragraph "${parent.getFormat("text", "<u>Set Rule Machine Private Boolean</u>: Rule actions will be invoked at the event start and event end.  If you wish to differentiate between the two times, set this setting to true and the Rule Private Boolean will be set to True at the event start and False at the event end.  Then build your rule conditions around these values to have a different flow.")}"
                         input "updateRuleBoolean", "bool", title: "Set Rule Machine Private Boolean?", defaultValue: false
                     }
@@ -228,7 +230,7 @@ def mainPage() {
                 def controlSwitchesDescription = getControlSwitchesDescription(settings.searchType)
                 paragraph "${parent.getFormat("text", controlSwitchesDescription.description)}"
                 input "controlSwitches", "bool", title: "${controlSwitchesDescription.title}", defaultValue: false, submitOnChange: true
-                if ( settings.controlSwitches == true ) {
+                if (settings.controlSwitches == true) {
                     paragraph "${parent.getFormat("text", controlSwitchesDescription.instructions)}"
                     input name: "itemField", type: "enum", title: "${settings.searchType} field to use for swith instructions", required: true, defaultValue: "title", options:controlSwitchesDescription.options, width: 4
                     input name: "offTranslation", type: "text", title: "Translation for Off", required: true, defaultValue: "off", width: 4
@@ -239,7 +241,7 @@ def mainPage() {
                 }
                 paragraph "${parent.getFormat("line")}"
                 
-                if ( settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true ) {
+                if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true) {
                     paragraph "${parent.getFormat("text", "Toggle 'Enable descriptionText logging' below if you want this app to create an event log entry when the additional actions are executed with details on that action.")}"
                     input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
                     paragraph "${parent.getFormat("line")}"
@@ -247,7 +249,7 @@ def mainPage() {
             }
         }
         
-        if ( settings.search ) {
+        if (settings.search) {
             section("${parent.getFormat("box", "App Preferences")}") {
                 def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
                 input name: "appName", type: "text", title: "Name this child app", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
@@ -256,7 +258,7 @@ def mainPage() {
             }
         }
             
-        if ( state.installed ) {
+        if (state.installed) {
 	    	section ("Remove Trigger and Corresponding Device") {
             	paragraph "ATTENTION: The only way to uninstall this trigger and the corresponding child switch device is by clicking the Remove button below. Trying to uninstall the corresponding device from within that device's preferences will NOT work."
             }
@@ -364,20 +366,21 @@ def installed() {
 def updated() {
 	unschedule()
     initialize()
-    atomicState.item = null
-    poll()
 }
 
 def initialize() {
-    state.installed = true
-    if ((settings.setOffset == null || settings.setOffset == false) && (settings.offsetStart != null || settings.offsetEnd != null)) {
+    atomicState.installed = true
+    atomicState.item = null
+    log.trace "initialize 1"
+    //Remove code later
+    /*if ((settings.setOffset == null || settings.setOffset == false) && (settings.offsetStart != null || settings.offsetEnd != null)) {
         app.updateSetting("setOffset", [value:"true", type:"bool"])
-    }
+    }*/
     
     // Sets Label of Trigger
     updateAppLabel()
     
-    if ( settings.createChildSwitch != false ) {
+    if (settings.createChildSwitch != false) {
         state.deviceID = "GCal_${app.id}"
         def childDevice = getChildDevice(state.deviceID)
         if (!childDevice) {
@@ -390,29 +393,41 @@ def initialize() {
         }
     }
     if (!state.isPaused) {
-        if ( settings.whenToRun == "Once Per Day" ) {
+        if (settings.whenToRun == "Once Per Day") {
             schedule(timeToRun, poll)
             logDebug("initialize - creating schedule once per day at: ${timeToRun}")
         } else {
             def cronString = ""
-            if ( settings.frequency == "Hours" ) {
+            if (settings.frequency == "Hours") {
                 def hourlyTimeToRun = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSX", settings.hourlyTimeToRun)
                 def hour = hourlyTimeToRun.hours
                 def minute = hourlyTimeToRun.minutes
                 cronString = "0 ${minute} ${hour}/${hours} * * ? *"
-            } else if ( settings.frequency == "Minutes" ) {
+            } else if (settings.frequency == "Minutes") {
                 cronString = "0 0/${settings.minutes} * * * ?"
-            } else if ( settings.frequency == "Cron String" ) {
+            } else if (settings.frequency == "Cron String") {
                 cronString = settings.cronString
             }
             schedule(cronString, poll)
             logDebug("initialize - creating schedule with cron string: ${cronString}")
         }
     }
+    poll()
 }
 
 def getDefaultSwitchValue() {
     return settings.switchValue
+}
+
+def poll() {
+    if (settings.createChildSwitch == true) {
+        def childDevice = getChildDevice(state.deviceID)
+        logDebug "poll - childDevice: ${childDevice}"
+        childDevice.poll()
+    } else {
+        logDebug "poll - no childDevice"
+        getNextItems()
+    }
 }
 
 def getNextItems() {
@@ -420,14 +435,16 @@ def getNextItems() {
     parent.upgradeSettings()
     
     def answer
-    if ( settings.searchType == "Task" ) {
+    if (settings.searchType == "Task") {
         answer = getNextTasks()
-    } else if ( settings.searchType == "Reminder" ) {
+    } else if (settings.searchType == "Reminder") {
         answer = getNextReminders()
     } else {
         answer = getNextEvents()
     }
-    state.refreshed = parent.getCurrentTime()
+    if (!state.isPaused) {
+        atomicState.refreshed = parent.getCurrentTime()
+    }
     return answer
 }
 
@@ -443,24 +460,11 @@ def completeItem() {
 }
 
 def getNextEvents() {
-    // Code to be removed later, temporarily set watchList variable so the calendar search continues to work
+    /* Code to be removed later, temporarily set watchList variable so the calendar search continues to work
     if (settings.watchList == null && settings.watchCalendars != null) {
         settings.watchList = settings.watchCalendars
         log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade."
-    }
-    
-    def logMsg = []
-    def search = (!settings.search) ? "" : settings.search
-    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    
-    def offsetEnd
-    if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
-        offsetEnd = settings.offsetEnd.toInteger()
-        offsetEnd = offsetEnd * 60 * 1000
-    }
-    
-    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat)
-    logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
+    }*/
     
     def item = [
         eventTitle: " ",
@@ -471,6 +475,23 @@ def getNextEvents() {
         eventEndTime: " ",
         switch: "defaultValue"
     ]
+    
+    if (state.isPaused) {
+        log.warn "${app.label} is paused, cannot refresh."
+        return item
+    }
+    
+    def logMsg = []
+    def search = (!settings.search) ? "" : settings.search
+    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
+    def offsetEnd
+    if (settings.setOffset && settings.offsetEnd != null && settings.offsetEnd != "") {
+        offsetEnd = settings.offsetEnd.toInteger()
+        offsetEnd = offsetEnd * 60 * 1000
+    }
+    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat)
+    logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
+    
     def foundMatch = false
     def sequentialEventOffset = false
     if (items && items.size() > 0) {
@@ -589,19 +610,24 @@ def getNextEvents() {
 }
 
 def getNextTasks() {
-    def logMsg = []
-    def search = (!settings.search) ? "" : settings.search
-    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    
-    def items = parent.getNextTasks(settings.watchList, search, endTimePreference)
-    logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
-    
     def item = [
         taskTitle: " ",
         taskID: " ",
         taskDueDate: " ",
         switch: "defaultValue"
     ]
+    
+    if (state.isPaused) {
+        log.warn "${app.label} is paused, cannot refresh."
+        return item
+    }
+    
+    def logMsg = []
+    def search = (!settings.search) ? "" : settings.search
+    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
+    def items = parent.getNextTasks(settings.watchList, search, endTimePreference)
+    logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
+    
     def sequentialEventOffset = false
     if (items && items.size() > 0) {     
         def foundMatch = false
@@ -660,19 +686,25 @@ def completeTask(taskID) {
 }
 
 def getNextReminders() {
-    def logMsg = []
-    def search = (!settings.search) ? "" : settings.search
-    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    
-    def items = parent.getNextReminders(search, endTimePreference)
-    logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
-    
     def item = [
         taskTitle: " ",
         taskID: " ",
         taskDueDate: " ",
         switch: "defaultValue"
     ]
+    
+    if (state.isPaused) {
+        log.warn "${app.label} is paused, cannot refresh."
+        return item
+    }
+    
+    
+    def logMsg = []
+    def search = (!settings.search) ? "" : settings.search
+    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
+    def items = parent.getNextReminders(search, endTimePreference)
+    logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
+    
     def completeAllPastDue = true
     def sequentialEventOffset = false
     if (items && items.size() > 0) {
@@ -1338,7 +1370,7 @@ def gatherSwitchNames(item, key) {
 }
 
 def triggerStartRule(itemID) {
-    if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
+    if (settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanTrue")
     }
     runRMAPI("runRuleAct")
@@ -1349,7 +1381,7 @@ def triggerEndRule(itemID) {
         return
     }
     
-    if ( settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
+    if (settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
     runRMAPI("runRuleAct")
@@ -1497,18 +1529,7 @@ def parseDateTime(dateTime) {
     return dateTime
 }
 
-def poll() {
-    if ( settings.createChildSwitch == true ) {
-        def childDevice = getChildDevice(state.deviceID)
-        logDebug "poll - childDevice: ${childDevice}"
-        childDevice.poll()
-    } else {
-        logDebug "poll - no childDevice"
-        getNextItems()
-    }
-}
-
-def syncChildSwitches(value){
+def syncChildSwitches(value) {
     if (value == "on") {
         syncSwitches?.on()
         reverseSwitches?.off()
@@ -1543,17 +1564,17 @@ private childCreated() {
 private textVersion() {
     def text = "Trigger Version: ${ version() }"
 }
-private dVersion(){
+private dVersion() {
 	def text = "Device Version: ${getChildDevices()[0].version()}"
 }
 
 def appButtonHandler(btn) {
     switch(btn) {
         case "pauseButton":
-			state.isPaused = true
+			atomicState.isPaused = true
             break
 		case "resumeButton":
-			state.isPaused = false
+			atomicState.isPaused = false
 			break
         case "refreshButton":
 			poll()
