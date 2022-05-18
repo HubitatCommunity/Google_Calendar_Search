@@ -1,4 +1,4 @@
-def driverVersion() { return "3.3.2" }
+def driverVersion() { return "3.4.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -31,6 +31,7 @@ metadata {
         attribute "eventStartTime", "string"
         attribute "eventEndTime", "string"
         attribute "eventAllDay", "bool"
+        attribute "eventReminderMin", "number"
         
         //Task and Reminder
         attribute "taskTitle", "string"
