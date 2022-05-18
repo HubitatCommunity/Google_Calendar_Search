@@ -389,10 +389,6 @@ def updated() {
 def initialize() {
     atomicState.installed = true
     atomicState.item = null
-    //Remove code later
-    /*if ((settings.setOffset == null || settings.setOffset == false) && (settings.offsetStart != null || settings.offsetEnd != null)) {
-        app.updateSetting("setOffset", [value:"true", type:"bool"])
-    }*/
     
     // Sets Label of Trigger
     updateAppLabel()
@@ -585,9 +581,17 @@ def getNextEvents() {
             if (settings.delayToggle == false) {
                 item.scheduleStartTime = new Date()
             }
-            if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
+            if (settings.setOffset && ((settings.offsetStart != null && settings.offsetStart != "") || settings.offsetStartFromReminder == true)) {
                 def origStartTime = new Date(item.eventStartTime.getTime())
-                int offsetStart = settings.offsetStart.toInteger()
+                
+                int offsetStart
+                if (settings.offsetStartFromReminder == true) {
+                    offsetStart = item.eventReminderMin.toInteger()
+                    offsetStart = (settings.offsetStartFromReminderWhen == "Before") ? -offsetStart : offsetStart
+                } else {
+                    offsetStart = settings.offsetStart.toInteger()
+                }
+                
                 def tempStartTime = item.scheduleStartTime.getTime()
                 tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
                 item.scheduleStartTime.setTime(tempStartTime)
@@ -825,8 +829,8 @@ def runAdditionalActions(items) {
                     scheduleItem.end = item.scheduleEndTime
                 }
                 if (item.containsKey("eventReminderMin") && item.eventReminderMin != null) {
-                    scheduleItem.reminder = item.eventStartTime.getTime() - (item.eventReminderMin * 60000)
-                    scheduleItem.reminder = (now() > scheduleItem.reminder) ? nowTime : scheduleItem.reminder
+                    def reminder = item.eventStartTime.getTime() - (item.eventReminderMin * 60000)
+                    scheduleItem.reminder = (now() > reminder) ? nowTime : new Date(reminder)
                 }
                 
                 if (startTime == null) {
@@ -987,6 +991,9 @@ def triggerAdditionalAction(ArrayList data=[]) {
         switch (actionName) {
             case "triggerSwitchControl":
                 triggerSwitchControl(itemID)
+                break
+            case "triggerReminderNotification":
+                triggerReminderNotification(itemID)
                 break
             case "triggerStartNotification":
                 triggerStartNotification(itemID)
