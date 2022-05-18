@@ -1,4 +1,4 @@
-def appVersion() { return "3.3.2" }
+def appVersion() { return "3.4.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -70,7 +70,7 @@ def mainPage() {
             } else {
                 def scopesAuthorized = parent.getScopesAuthorized()
                 if (scopesAuthorized == null) {
-                    log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade and click Done."
+                    log.error "The parent GCal Search is using an old OAuth credential type. Please open this app and follow the steps to complete the upgrade and click Done."
                 }
                 def watchListOptions
                 input name: "searchType", title:"Do you want to search Google Calendar Event, Task or Reminder?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
@@ -113,7 +113,7 @@ def mainPage() {
                     settings.GoogleMatching == null // Reminder API doesn't allow text searching
                 }
                 if (settings.GoogleMatching == false || settings.GoogleMatching == null) {
-                    paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find events with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any event with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all events except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
+                    paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find items with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any item with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all items except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
                     input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
                 }
                 input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
@@ -142,7 +142,7 @@ def mainPage() {
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
-                paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, events from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
+                paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, items from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
                 input name: "endTimePref", type: "enum", title: "Search Range", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
                 if (settings.endTimePref == "Number of Hours from Current Time") {
                     input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
@@ -151,14 +151,22 @@ def mainPage() {
                     paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling and additonal actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
                     input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                 }
-                paragraph "${parent.getFormat("text", "<u>Delay Event Toggle Preference</u>: By default the switch will toggle and additional actions will trigger based on the matching Event Start Time. If this setting is set to false, the switch will toggle and additional actions will trigger at the run time of this search trigger if a match is found. The switch will continue to toggle and additional actions will trigger again based on the Event End Time.")}"
-                input name: "delayToggle", type: "bool", title: "Delay toggle to event start?", defaultValue: true
-                paragraph "${parent.getFormat("text", "<u>Optional Event Offset Preferences</u>: Based on the defined Search Range, if an item is found in the future from the current time, scheduled triggers will be created to toggle the switch and trigger additional actions based on the item's start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the item date(s).  For example, if you wish for the switch to toggle or additional actions to trigger 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a task.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
+                paragraph "${parent.getFormat("text", "<u>Delay to ${settings.searchType} Start Preference</u>: By default the switch will toggle and additional actions will trigger based on the matching ${settings.searchType} Start Time. If this setting is set to false, the switch will toggle and additional actions will trigger at the run time of this search trigger if a match is found. The switch will continue to toggle and additional actions will trigger again based on the Event End Time (if applicable).")}"
+                input name: "delayToggle", type: "bool", title: "Delay to ${settings.searchType} start?", defaultValue: true
+                paragraph "${parent.getFormat("text", "<u>Optional Offset Preferences</u>: Based on the defined Search Range, if an item is found in the future from the current time, scheduled triggers will be created to toggle the switch and trigger additional actions based on the item's start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the item date(s).  For example, if you wish for the switch to toggle or additional actions to trigger 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a task.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
                 input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
                 if (settings.setOffset == true) {
-                    input name: "offsetStart", type: "decimal", title: "Event Start Offset in minutes (+/-)", required: false
                     if (settings.searchType == "Calendar Event") {
-                        input name: "offsetEnd", type: "decimal", title: "Event End Offset in minutes (+/-)", required: false
+                        input name: "offsetStartFromReminder", type: "bool", title: "Start Offset from Event Reminder Value?", defaultValue: false, required: false, submitOnChange: true
+                    }
+                    if (settings.searchType != "Calendar Event" || (settings.searchType == "Calendar Event" && settings.offsetStartFromReminder != true)) {
+                        input name: "offsetStart", type: "decimal", title: "Start Offset in minutes (+/-)", required: false
+                    } else {
+                        paragraph "${parent.getFormat("text", "Reminders are always stored in minutes even if hours or weeks is set when creating the event.  By default offset will be X minutes before the event start time, however you may choose to delay the start time X minutes after the event start time too.")}"
+                        input name: "offsetStartFromReminderWhen", type: "enum", title: "Before or After", required: true, options:["Before", "After"], defaultValue: "Before"
+                    }
+                    if (settings.searchType == "Calendar Event") {
+                        input name: "offsetEnd", type: "decimal", title: "End Offset in minutes (+/-)", required: false
                     }
                 }
                 paragraph "${parent.getFormat("line")}"
@@ -202,6 +210,12 @@ def mainPage() {
                     }
                     
                     paragraph "${parent.getFormat("text", "<u>Custom message to send</u>: " + getNotificationMsgDescription(settings.searchType))}"
+                    if (settings.searchType == "Calendar Event") {
+                        input "sendReminder", "bool", title: "Send reminder?", defaultValue: false, submitOnChange: true
+                        if (settings.sendReminder == true) {
+                            input name: "notificationReminderMsg", type: "textarea", title: "Custom reminder to send at event reminder setting", required: true, defaultValue: "%eventTitle% is starting at %eventStartTime%"
+                        }
+                    }
                     input name: "notificationStartMsg", type: "textarea", title: "${startMsg}", required: false
                     input name: "notificationEndMsg", type: "textarea", title: "${endMsg}", required: false
                     paragraph "${parent.getFormat("text", "<u>Include details from all matching items</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. By default only details from the first item will be included in notifications. Set this setting to true if you want details from all matching items to be included.")}"
@@ -273,6 +287,9 @@ def getNotificationMsgDescription(searchType) {
         if (settings.setOffset) {
             answer += " Offset values can be be added by using %scheduleStartTime% and %scheduleEndTime%."
         }
+        if (settings.sendReminder) {
+            answer += " Reminder minutes can be be added by using %eventReminderMin%."
+        }
     } else {
         answer += "%taskTitle% to include task title and %taskDueDate% to include task due date."
         if (settings.setOffset) {
@@ -303,7 +320,8 @@ def getNextItemDescription() {
                 itemDetails += ", "
                 itemDetails += "<b>End Time</b>: ${formatDateTime(item.eventEndTime)}"
                 itemDetails += (item.eventEndTime != item.scheduleEndTime) ? " (<b>End Offset</b>: ${formatDateTime(item.scheduleEndTime)}) " : " "
-                itemDetails += "\n<b>Location</b>: ${item.eventLocation}, <b>Event All Day</b>: ${item.eventAllDay}"
+                itemDetails += "\n<b>Location</b>: ${item.eventLocation}"
+                itemDetails += "\n<b>Event All Day</b>: ${item.eventAllDay}, <b>Reminder</b>: ${item.eventReminderMin} Minutes"
             } else {
                 itemDetails += "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
                 itemDetails += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
@@ -371,7 +389,6 @@ def updated() {
 def initialize() {
     atomicState.installed = true
     atomicState.item = null
-    log.trace "initialize 1"
     //Remove code later
     /*if ((settings.setOffset == null || settings.setOffset == false) && (settings.offsetStart != null || settings.offsetEnd != null)) {
         app.updateSetting("setOffset", [value:"true", type:"bool"])
@@ -460,12 +477,6 @@ def completeItem() {
 }
 
 def getNextEvents() {
-    /* Code to be removed later, temporarily set watchList variable so the calendar search continues to work
-    if (settings.watchList == null && settings.watchCalendars != null) {
-        settings.watchList = settings.watchCalendars
-        log.error "The parent GCal Search is using an old OAuth credential type.  Please open this app and follow the steps to complete the upgrade."
-    }*/
-    
     def item = [
         eventTitle: " ",
         eventDescription: " ",
@@ -473,6 +484,7 @@ def getNextEvents() {
         eventAllDay: " ",
         eventStartTime: " ",
         eventEndTime: " ",
+        eventReminderMin: " ",
         switch: "defaultValue"
     ]
     
@@ -785,6 +797,7 @@ def runAdditionalActions(items) {
             def additionalActions = [:]
             def scheduleItems = [
                 triggerSwitchControl : [],
+                triggerReminderNotification : [],
                 triggerStartNotification : [],
                 triggerEndNotification : [],
                 triggerStartRule : [],
@@ -810,6 +823,10 @@ def runAdditionalActions(items) {
                 scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                 if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
                     scheduleItem.end = item.scheduleEndTime
+                }
+                if (item.containsKey("eventReminderMin") && item.eventReminderMin != null) {
+                    scheduleItem.reminder = item.eventStartTime.getTime() - (item.eventReminderMin * 60000)
+                    scheduleItem.reminder = (now() > scheduleItem.reminder) ? nowTime : scheduleItem.reminder
                 }
                 
                 if (startTime == null) {
@@ -869,9 +886,15 @@ def runAdditionalActions(items) {
                     additionalActions.triggerSwitchControl = triggerSwitchControl
                 }
                 
-                if (settings.sendNotification != true || (settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
+                if (settings.sendNotification != true || (settings.notificationReminderMsg == null && settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
                     logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
                 } else {
+                    if (settings.sendReminder == true && settings.notificationReminderMsg != null) {
+                        logMsg.push("scheduling reminder notification ${scheduleItem}")
+                        scheduleItems.triggerReminderNotification.push(scheduleItem)
+                        additionalActions.triggerReminderNotification = "scheduled"
+                    }
+                    
                     if (settings.notificationStartMsg != null) {
                         logMsg.push("scheduling start notification ${scheduleItem}")
                         scheduleItems.triggerStartNotification.push(scheduleItem)
@@ -917,6 +940,7 @@ def runAdditionalActions(items) {
                 for (int v = 0; v < values.size(); v++) {
                     def value = values[v]
                     def scheduleTime = (key.indexOf("End") > -1 && value.containsKey("end")) ? value.end : value.time
+                    scheduleTime = (key.indexOf("Reminder") > -1 ) ? value.reminder : scheduleTime
                     if (!scheduleItems.containsKey("scheduler")) {
                         scheduleItems.scheduler = [:]
                     }
@@ -1275,6 +1299,11 @@ def matchItem(items, caseSensitive, searchTerms, searchField) {
     
     logDebug("${logMsg}")
     return tempItems
+}
+
+def triggerReminderNotification(itemID) {
+    def msg = settings.notificationReminderMsg
+    composeNotification("Reminder Notification", msg, itemID)
 }
 
 def triggerStartNotification(itemID) {
