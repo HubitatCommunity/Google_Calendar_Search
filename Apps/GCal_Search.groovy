@@ -1,4 +1,4 @@
-def appVersion() { return "3.4.0" }
+def appVersion() { return "3.4.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -636,17 +636,17 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
 
     if (events.items && events.items.size() > 0) {
-        def defaultReminder = events.defaultReminders[0]
+        def defaultReminder = (events.containsKey("defaultReminders") && events.defaultReminders.size() > 0) ? events.defaultReminders[0] : [method:"popup", minutes:15]
         for (int i = 0; i < events.items.size(); i++) {
             def event = events.items[i]
             
             def reminderMinutes
-            if (event.reminders.useDefault) {
-                reminderMinutes = defaultReminder.minutes
-            } else {
+            if (event.containsKey("reminders") && event.reminders.containsKey("overrides")) {
                 def reminders = event.reminders.overrides
                 reminderMinutes = reminders.find{it.method == defaultReminder.method}
                 reminderMinutes = reminderMinutes.minutes
+            } else {
+                reminderMinutes = defaultReminder.minutes
             }
             
             def eventDetails = [:]
