@@ -1,4 +1,4 @@
-def appVersion() { return "3.4.1" }
+def appVersion() { return "3.4.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -475,6 +475,7 @@ def completeItem() {
 def getNextEvents() {
     def item = [
         eventTitle: " ",
+        eventID: " ",
         eventDescription: " ",
         eventLocation: " ",
         eventAllDay: " ",
@@ -893,13 +894,13 @@ def runAdditionalActions(items) {
                 if (settings.sendNotification != true || (settings.notificationReminderMsg == null && settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
                     logMsg.push("sendNotification: ${settings.sendNotification}, not scheduling notification(s)")
                 } else {
-                    if (settings.sendReminder == true && settings.notificationReminderMsg != null) {
+                    if (settings.sendReminder == true && settings.notificationReminderMsg != null && (scheduleItem.time > nowTime || didVariablesChange(settings.notificationReminderMsg, itemCompare.changes))) {
                         logMsg.push("scheduling reminder notification ${scheduleItem}")
                         scheduleItems.triggerReminderNotification.push(scheduleItem)
                         additionalActions.triggerReminderNotification = "scheduled"
                     }
                     
-                    if (settings.notificationStartMsg != null) {
+                    if (settings.notificationStartMsg != null && (scheduleItem.time > nowTime || didVariablesChange(settings.notificationStartMsg, itemCompare.changes))) {
                         logMsg.push("scheduling start notification ${scheduleItem}")
                         scheduleItems.triggerStartNotification.push(scheduleItem)
                         additionalActions.triggerStartNotification = "scheduled"
@@ -976,6 +977,23 @@ def runAdditionalActions(items) {
     logMsg.push("\nAFTER items:\n${items}")
     atomicState.item = items
     logDebug("${logMsg}")
+}
+
+def didVariablesChange(msg, changes) {
+    def logMsg = ["didVariablesChange - msg: ${msg}, changes: ${changes}"]
+    def answer = false
+    def variableNames = gatherVariableNames(msg)
+    logMsg.push("variableNames : ${variableNames}")
+    for (int i = 0; i < changes.size(); i++) {
+        if (variableNames.indexOf(changes[i]) > -1) {
+            answer = true
+        }
+    }
+    
+    logMsg.push("returning : ${answer}")
+    logDebug("${logMsg}")
+    //log.trace "${logMsg}"
+    return answer
 }
 
 def triggerAdditionalAction(ArrayList data=[]) {
@@ -1330,7 +1348,6 @@ def triggerEndNotification(itemID) {
 def composeNotification(fromFunction, msg, itemID) {
     def logInfoMsg = []
     if (msg.indexOf("%") > -1) {
-        def pattern = /(?<=%).*?(?=%)/
         def items = atomicState.item
         if (itemID) {
             def tempItem = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
@@ -1344,15 +1361,16 @@ def composeNotification(fromFunction, msg, itemID) {
         if (settings.includeAllItems == false) {
             items = [items[0]]
         }
+        
+        def variableNames = gatherVariableNames(msg)
         def msgList = []
         for (int i = 0; i < items.size(); i++) {
             def tempMsg = msg
             def item = items[i]
-            while (tempMsg.indexOf("%") > -1) {
-                def matches = tempMsg =~ pattern
-                def match = matches[0]
+            for (int v = 0; v < variableNames.size(); v++) {
+                def variableName = variableNames[v]
                 def value
-                switch (match) {
+                switch (variableName) {
                     case "now":
                         value = new Date()
                         break
@@ -1363,13 +1381,13 @@ def composeNotification(fromFunction, msg, itemID) {
                         value = gatherSwitchNames(item, "off")
                         break
                     default:
-                        value = item[match].toString()
+                        value = item[variableName].toString()
                 }
-                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(match) > -1) {
+                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(variableName) > -1) {
                     value = formatDateTime(value)
                 }
                 
-                def textMatch = "%" + match + "%"
+                def textMatch = "%" + variableName + "%"
                 tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
             }
             if (tempMsg.trim()) {
@@ -1402,6 +1420,27 @@ def gatherSwitchNames(item, key) {
         answer = "${switchList.join(", ")}"
     }
     
+    return answer
+}
+
+def gatherVariableNames(msg) {
+    def answer = []
+    if (msg.indexOf("%") > -1) {
+        def pattern = /(?<=%).*?(?=%)/
+        def matches = (msg =~ pattern).findAll()
+        for (int i = 0; i < matches.size(); i++) {
+            def match = matches[i].trim()
+            def textMatch = "%" + match + "%"
+            if (msg.indexOf(textMatch) > -1) {
+                answer.push(match)
+                msg = msg.replace(textMatch, "")
+            } else {
+                msg = msg.replace(match, "")
+            }
+        }
+    }
+    
+    //logDebug("gatherVariableNames - answer: ${answer}")
     return answer
 }
 
@@ -1470,11 +1509,14 @@ def compareItem(items) {
 }
 
 def compare2Items(current, previous) {
+    def logMsg = ["compare2Items:\ncurrent item: ${current}\nprevious item: ${previous}"]
+    
     def answer = [
         same: false,
         allProcessed: false,
         processed: [],
-        scheduled: []
+        scheduled: [],
+        changes: []
     ]
     
     if (current != null && previous != null) {
@@ -1493,7 +1535,12 @@ def compare2Items(current, previous) {
                 previousValue = formatDateTime(previousValue)
             }
             
-            compareValues.push(currentValue == previousValue)
+            def comparison = currentValue == previousValue
+            compareValues.push(comparison)
+            if (comparison == false) {
+                logMsg.push("Difference: ${key} - currentValue(${currentValue}) != previousValue(${previousValue})")
+                answer.changes.push(key)
+            }
         }
         if (compareValues.toString().indexOf("false") == -1) {
             answer.same = true
@@ -1521,9 +1568,12 @@ def compare2Items(current, previous) {
                 answer.allProcessed = true
             }
         }
+    } else {
+        answer.changes.push("newItem")
     }
     
-    logDebug("compare2Items: ${answer}\nitem: ${current}\npreviousItem: ${previous}")
+    logMsg.push("returning : ${answer}")
+    logDebug("${logMsg}")
     return answer
 }
 
