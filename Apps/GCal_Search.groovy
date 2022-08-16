@@ -1,4 +1,4 @@
-def appVersion() { return "3.4.1" }
+def appVersion() { return "3.4.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -634,7 +634,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
 
     def events = apiGet("getNextEvents", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
-
+    
     if (events.items && events.items.size() > 0) {
         def defaultReminder = (events.containsKey("defaultReminders") && events.defaultReminders.size() > 0) ? events.defaultReminders[0] : [method:"popup", minutes:15]
         for (int i = 0; i < events.items.size(); i++) {
