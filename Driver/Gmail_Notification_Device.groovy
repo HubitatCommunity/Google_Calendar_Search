@@ -1,7 +1,7 @@
 def driverVersion() { return "3.5.0" }
 /**
  *  Gmail Notification Device Driver
- *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
+ *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy
  *
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
