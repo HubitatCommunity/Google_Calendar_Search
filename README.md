@@ -1,7 +1,7 @@
-# Google Calendar, Task, and Reminder Search
-Hubitat Google Calendar, Task, and Reminder Search
+# Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device
+Hubitat Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device
 
-For discussion and more information, visit the Hubitat Community <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Reminder Search</a>.
+For discussion and more information, visit the Hubitat Community <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device</a>.
 
 ## Google API Setup
 1. Login to the Google Cloud Console: https://console.cloud.google.com
@@ -29,17 +29,20 @@ For discussion and more information, visit the Hubitat Community <a href="https:
     ![image](https://user-images.githubusercontent.com/10900324/151466429-40365e10-e315-447e-95d0-6da9276600a9.png)
 14. Click **Create**
 15. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
-16. Next you will enable access to the Google apps you wish Hubitat to search: Google Calendar API and Tasks API (Reminders uses an unofficial API that doesn't need entitlement in the Console).  Feel free to skip a step if you don't intend for Hubitat to search one of these apps.
-17. In the top blue search, enter 'calendar api' and choose **Google Calendar API** under Marketplace
+16. Next you will enable access to the Google apps you wish Hubitat to search: Google Calendar API, Tasks API, Gmail API (Reminders uses an unofficial API that doesn't need entitlement in the Console).  Feel free to skip a step if you don't intend for Hubitat to search one of these apps.
+17. In the top blue search, enter 'calendar api' and choose **Google Calendar API** under Marketplace, or <a href="https://console.cloud.google.com/apis/api/calendar-json.googleapis.com/" target="_blank">click here to navigate directly to this API</a>
     ![image](https://user-images.githubusercontent.com/10900324/151469047-ac8c089d-abdb-4429-a915-6d12b95532a9.png)
 18. Click **Enable**
 
     ![image](https://user-images.githubusercontent.com/10900324/115976840-037dd400-a540-11eb-9cd9-83156851f8ed.png)
  
-19. In the top blue search, enter 'tasks api' and choose **Tasks API** under Marketplace
+19. In the top blue search, enter 'tasks api' and choose **Tasks API** under Marketplace, or <a href="https://console.cloud.google.com/apis/api/tasks.googleapis.com/" target="_blank">click here to navigate directly to this API</a>
     ![image](https://user-images.githubusercontent.com/10900324/151469694-f62e8531-4b5e-466a-b48c-975421689a86.png)
 20. Click **Enable**
-21. Be sure you have your Client ID and Client Secret handy to continue setup within your HE hub.  If you ever need to get them again, you can navigate to APIs & Services and then Credentials to view your OAuth credentials.  Clicking the Pencil icon will expose your Client ID and Client Secret.
+21. In the top blue search, enter 'gmail api' and choose **Gmail API** under Marketplace, or <a href="https://console.cloud.google.com/apis/api/gmail.googleapis.com/" target="_blank">click here to navigate directly to this API</a>
+22. Click **Enable**
+23. If you wish to have Gmail Notification Devices please be sure to enable the Gmail API as that is required for this feature.
+24. Be sure you have your Client ID and Client Secret handy to continue setup within your HE hub.  If you ever need to get them again, you can navigate to APIs & Services and then Credentials to view your OAuth credentials.  Clicking the Pencil icon will expose your Client ID and Client Secret.
 
 ## Hubitat Installation and Setup
 Note: Google Calendar Search is available via <a href="https://community.hubitat.com/t/beta-hubitat-package-manager/38016" target="_blank">Hubitat Package Manager (HPM)</a>. If you install via HPM, skip to Step 5 below.
@@ -47,8 +50,9 @@ Note: Google Calendar Search is available via <a href="https://community.hubitat
 2. Install the apps from the "Apps" folder in this repository into the "Apps Code" section of Hubitat. If you are not familiar with this process, follow the steps in <a href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps" target="_blank">How to Install Custom Apps</a>.
   * GCal Search - This app requires you to enable OAuth so please follow the instructions mentioned above. Import URL is: https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
   * GCal Search Trigger - Import URL is: https://github.com/HubitatCommunity/Google_Calendar_Search/blob/main/Apps/GCal_Search_Trigger.groovy
-3. Install the driver from the "Driver" folder in this repository into the "Drivers Code" section of Hubitat. If you are not familiar with this process, follow the steps in <a href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Drivers" target="_blank">How to Install Custom Drivers</a>.
+3. Install the drivers from the "Driver" folder in this repository into the "Drivers Code" section of Hubitat. If you are not familiar with this process, follow the steps in <a href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Drivers" target="_blank">How to Install Custom Drivers</a>.
   * GCal Switch - Import URL is: https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy    
+  * Gmail Notification Device - Import URL is: https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy    
 4. Install an instance of app: go to **Apps > Add User App**, choose **GCal Search**
 5. Click **Google API Authorization**
 6. Enter the Client ID and Secret copied from Step 15 above
