@@ -1,4 +1,4 @@
-def appVersion() { return "3.4.2" }
+def appVersion() { return "3.5.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -72,8 +72,8 @@ def mainPage() {
                 if (scopesAuthorized == null) {
                     log.error "The parent GCal Search is using an old OAuth credential type. Please open this app and follow the steps to complete the upgrade and click Done."
                 }
-                def watchListOptions
-                input name: "searchType", title:"Do you want to search Google Calendar Event, Task or Reminder?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
+                def watchListOptions, mailLabels
+                input name: "searchType", title:"Do you want to search Google Calendar Event, Task, Reminder, or Gmail?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
                 //Default value above isn't working so set a default to prevent app errors
                 if ((settings.searchType == null || settings.searchType == "Calendar") && scopesAuthorized != null) {
                     if (scopesAuthorized.indexOf("Calendar") > -1) {
@@ -95,12 +95,9 @@ def mainPage() {
                         input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
                         input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
                         input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
-                        if (settings.GoogleMatching == true) {
-                            paragraph "${parent.getFormat("text", "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples.")}"
-                        }
                     }
                 } else if (settings.searchType == "Task") {
-                    settings.GoogleMatching == null // Task API doesn't allow text searching
+                    settings.GoogleMatching = false // Task API doesn't allow text searching
                     watchListOptions = parent.getTaskList()
                     if (watchListOptions == "error") {
                         paragraph "${parent.getFormat("warning", "The Google Tasks API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/library/tasks.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
@@ -108,15 +105,43 @@ def mainPage() {
                         logDebug("Task list = ${watchListOptions}")
                         input name: "watchList", title:"Which task list do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
                     }
+                } else if (settings.searchType == "Gmail") {
+                    settings.GoogleMatching = true // Gmail must use Google Matching
                 } else {
                     logDebug("scopesAuthorized: ${scopesAuthorized}")
-                    settings.GoogleMatching == null // Reminder API doesn't allow text searching
+                    settings.GoogleMatching = false // Reminder API doesn't allow text searching
                 }
-                if (settings.GoogleMatching == false || settings.GoogleMatching == null) {
+                if (settings.GoogleMatching == true) {
+                    def searchHelp = ""
+                    if (settings.searchType == "Gmail") {
+                        searchHelp = "If not familiar with Google Search special characters, please visit <a href='https://support.google.com/mail/answer/7190?hl=en' target='_blank'>Search operators you can use with Gmail</a> for examples."
+                    } else {
+                        searchHelp = "If not familiar with Google Search special characters, please visit <a href='http://www.googleguide.com/crafting_queries.html' target='_blank'>GoogleGuide</a> for examples."
+                    }
+                    
+                    paragraph "${parent.getFormat("text", searchHelp)}"
+                } else {
                     paragraph '<p><span style="font-size: 14pt;">Search String Options:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>By default matches are CaSe sensitive, toggle \'Enable case sensitive matching\' to make search matching case insensitive.</li><li>By default the search string is matched to the ' + settings.searchType.toLowerCase() + ' title using a starts with search.</li><li>For exact match, prefix the search string with an = sign. For example enter =Kids No School to find items with the exact title/location of \'Kids No School\'.</li><li>For a contains search, include an * sign. For example to find any item with the word School, enter *School. This also works for multiple non consecutive words. For example to match both Kids No School and Kids Late School enter Kids*School.</li><li>Multiple search strings may be entered separated by commas.</li><li>To match any ' + settings.searchType.toLowerCase() + ' for that day, enter *</li><li>To exclude ' + settings.searchType.toLowerCase() + ' with specific words, prefix the word with a \'-\' (minus) sign.  For example if you would like to match all items except ones with the words \'personal\' and \'lunch\' enter \'* -personal -lunch\'</li></ul>'
                     input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
                 }
+                if (settings.searchType == "Gmail") {
+                    paragraph "${parent.getFormat("text", "By default this search trigger will query for unread emails in your Personal inbox (not social, forums, promotions, etc) and received after the last refreshed time (in Unix epoch time).  You may select labels to include as part of your query below or elect to search for all emails regardless of date received. If 'after:' or 'label:' is included in your search string, this will override these settings.")}"
+                    mailLabels = parent.getUserLabels()
+                    input name: "messageQueryLabels", title:"Search for emails with the following labels:", type: "enum", required:false, multiple:true, options:mailLabels, defaultValue: ["INBOX", "UNREAD"], submitOnChange: true
+                    input name: "messageQueryAfterLastRefresh", type: "bool", title: "Search for emails received since the last refresh of this app?", defaultValue: true, required: false, submitOnChange: true
+                }
                 input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
+                if (settings.searchType == "Gmail") {
+                    def mailQuery = getGmailQuery()
+                    def mailURL = "https://mail.google.com/mail/u/1/#search/" + URLEncoder.encode(mailQuery.toString())
+                    paragraph "${parent.getFormat("text", "When adjusting the Search Preferences of this app, you should test within <a href='${mailURL}' target='_blank'>the Gmail website</a> to ensure the right messages are found. The following is the query that will be used to query for emails.")}"
+                    paragraph "${parent.getFormat("code", "${mailQuery}")}"
+                    paragraph "${parent.getFormat("text", "<u>Add/Remove labels</u>: Labels can be added and removed to emails matching the search criteria which may help designate that an email was processed.  Enable this option to adjust the labels.")}"
+                    input name: "messageApplyLabels", type: "bool", title: "Add/Remove labels on matching emails?", defaultValue: false, required: false, submitOnChange: true
+                    if (settings.messageApplyLabels == true) {
+                        input name: "messageSetLabels", title:"Matched Email Labels. <b>Note</b>: Labels selected will be added to the emails and labels unselected will be <u>removed</u>.", type: "enum", required:false, multiple:true, options:mailLabels, defaultValue: ["UNREAD"]
+                    }
+                }
                 paragraph "${parent.getFormat("line")}"
             }
         }
@@ -142,31 +167,33 @@ def mainPage() {
                         input name: "cronString", type: "text", title: "Enter Cron string", required: true, submitOnChange: true
                     }
                 }
-                paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, items from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
-                input name: "endTimePref", type: "enum", title: "Search Range", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
-                if (settings.endTimePref == "Number of Hours from Current Time") {
-                    input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
-                }
-                if (settings.searchType == "Calendar Event") {
-                    paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling and additonal actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
-                    input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
-                }
-                paragraph "${parent.getFormat("text", "<u>Delay to ${settings.searchType} Start Preference</u>: By default the switch will toggle and additional actions will trigger based on the matching ${settings.searchType} Start Time. If this setting is set to false, the switch will toggle and additional actions will trigger at the run time of this search trigger if a match is found. The switch will continue to toggle and additional actions will trigger again based on the Event End Time (if applicable).")}"
-                input name: "delayToggle", type: "bool", title: "Delay to ${settings.searchType} start?", defaultValue: true
-                paragraph "${parent.getFormat("text", "<u>Optional Offset Preferences</u>: Based on the defined Search Range, if an item is found in the future from the current time, scheduled triggers will be created to toggle the switch and trigger additional actions based on the item's start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the item date(s).  For example, if you wish for the switch to toggle or additional actions to trigger 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a task.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
-                input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
-                if (settings.setOffset == true) {
-                    if (settings.searchType == "Calendar Event") {
-                        input name: "offsetStartFromReminder", type: "bool", title: "Start Offset from Event Reminder Value?", defaultValue: false, required: false, submitOnChange: true
-                    }
-                    if (settings.searchType != "Calendar Event" || (settings.searchType == "Calendar Event" && settings.offsetStartFromReminder != true)) {
-                        input name: "offsetStart", type: "decimal", title: "Start Offset in minutes (+/-)", required: false
-                    } else {
-                        paragraph "${parent.getFormat("text", "Reminders are always stored in minutes even if hours or weeks is set when creating the event.  By default offset will be X minutes before the event start time, however you may choose to delay the start time X minutes after the event start time too.")}"
-                        input name: "offsetStartFromReminderWhen", type: "enum", title: "Before or After", required: true, options:["Before", "After"], defaultValue: "Before"
+                if (settings.searchType != "Gmail") {
+                    paragraph "${parent.getFormat("text", "<u>Search Range</u>: By default, items from the time of search through the end of the current day are collected.  Adjust this setting to expand the search to the end of the following day or a set number of hours from the time of search.")}"
+                    input name: "endTimePref", type: "enum", title: "Search Range", defaultValue: "End of Current Day", options:["End of Current Day","End of Next Day", "Number of Hours from Current Time"], submitOnChange: true
+                    if (settings.endTimePref == "Number of Hours from Current Time") {
+                        input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                     }
                     if (settings.searchType == "Calendar Event") {
-                        input name: "offsetEnd", type: "decimal", title: "End Offset in minutes (+/-)", required: false
+                        paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling and additonal actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
+                        input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
+                    }
+                    paragraph "${parent.getFormat("text", "<u>Delay to ${settings.searchType} Start Preference</u>: By default the switch will toggle and additional actions will trigger based on the matching ${settings.searchType} Start Time. If this setting is set to false, the switch will toggle and additional actions will trigger at the run time of this search trigger if a match is found. The switch will continue to toggle and additional actions will trigger again based on the Event End Time (if applicable).")}"
+                    input name: "delayToggle", type: "bool", title: "Delay to ${settings.searchType} start?", defaultValue: true
+                    paragraph "${parent.getFormat("text", "<u>Optional Offset Preferences</u>: Based on the defined Search Range, if an item is found in the future from the current time, scheduled triggers will be created to toggle the switch and trigger additional actions based on the item's start and end times. Use the settings below to set an offset to firing of these triggers N number of minutes before/after the item date(s).  For example, if you wish for the switch to toggle or additional actions to trigger 60 minutes prior to the start of the event, enter -60 in the Event Start Offset setting. This may be useful for reminder notifications where a message is sent/spoken in advance of a task.  Again this is dependent on When to Run (how often the trigger is executed) and the Search Range of events.")}"
+                    input name: "setOffset", type: "bool", title: "Set offset?", defaultValue: false, required: false, submitOnChange: true
+                    if (settings.setOffset == true) {
+                        if (settings.searchType == "Calendar Event") {
+                            input name: "offsetStartFromReminder", type: "bool", title: "Start Offset from Event Reminder Value?", defaultValue: false, required: false, submitOnChange: true
+                        }
+                        if (settings.searchType != "Calendar Event" || (settings.searchType == "Calendar Event" && settings.offsetStartFromReminder != true)) {
+                            input name: "offsetStart", type: "decimal", title: "Start Offset in minutes (+/-)", required: false
+                        } else {
+                            paragraph "${parent.getFormat("text", "Reminders are always stored in minutes even if hours or weeks is set when creating the event.  By default offset will be X minutes before the event start time, however you may choose to delay the start time X minutes after the event start time too.")}"
+                            input name: "offsetStartFromReminderWhen", type: "enum", title: "Before or After", required: true, options:["Before", "After"], defaultValue: "Before"
+                        }
+                        if (settings.searchType == "Calendar Event") {
+                            input name: "offsetEnd", type: "decimal", title: "End Offset in minutes (+/-)", required: false
+                        }
                     }
                 }
                 paragraph "${parent.getFormat("line")}"
@@ -175,7 +202,7 @@ def mainPage() {
         
         if (settings.search) {
             section("${parent.getFormat("box", "Child Switch Preferences")}") {
-                paragraph "${parent.getFormat("text", "<u>Create child switch</u>: By default this app will create and toggle a child switch when an item matches the search criteria.  Many inbuilt apps have restrictions based on the state of a switch where the rule won't if say for example a particular switch is turned on.  In other use cases, a child switch may bring unnecessary overhead.  Choose what you wish to happen when an item matches the search criteria.")}"
+                paragraph "${parent.getFormat("text", "<u>Create child switch</u>: By default this app will create and toggle a child switch when an item matches the search criteria.  Many inbuilt apps have restrictions based on the state of a switch where the rule won't fire if say for example a particular switch is turned on.  In other use cases, a child switch may bring unnecessary overhead.  Choose what you wish to happen when an item matches the search criteria.")}"
                 input name: "createChildSwitch", type: "bool", title: "Create child switch?", defaultValue: true, required: false, submitOnChange: true
                 if (settings.createChildSwitch != false) {
                     def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
@@ -197,6 +224,7 @@ def mainPage() {
                 paragraph "${parent.getFormat("line")}"
             }
             section("${parent.getFormat("box", "Additional Action Preferences")}") {
+                paragraph "${parent.getFormat("text", "Additional actions are optional and can be useful if you choose not to create a child switch to send notifications and run Rule Machine rules as items are found. Please be aware if you have rules set to trigger based on the child switch and you choose to run actions for those same rules problems may arise.")}"
                 paragraph "${parent.getFormat("text", "Notifications can be sent/spoken based on an item matching search criteria.")}"
                 input "sendNotification", "bool", title: "Send notifications?", defaultValue: false, submitOnChange: true
                 if (settings.sendNotification == true) {
@@ -204,6 +232,8 @@ def mainPage() {
                     if (settings.searchType == "Calendar Event") {
                         startMsg = "Custom message to send at event <u>scheduled start</u>"
                         endMsg = "Custom message to send at event <u>scheduled end</u>"
+                    } else if (settings.searchType == "Gmail") {
+                        startMsg = "Custom message to send when message is found"
                     } else {
                         startMsg = "Custom message to send at " + settings.searchType.toLowerCase() + " due date"
                         endMsg = "Custom message to send when " + settings.searchType.toLowerCase() + " is completed"
@@ -217,7 +247,9 @@ def mainPage() {
                         }
                     }
                     input name: "notificationStartMsg", type: "textarea", title: "${startMsg}", required: false
-                    input name: "notificationEndMsg", type: "textarea", title: "${endMsg}", required: false
+                    if (endMsg != null) {
+                        input name: "notificationEndMsg", type: "textarea", title: "${endMsg}", required: false
+                    }
                     paragraph "${parent.getFormat("text", "<u>Include details from all matching items</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. By default only details from the first item will be included in notifications. Set this setting to true if you want details from all matching items to be included.")}"
                     input "includeAllItems", "bool", title: "Include details from all matching items?", defaultValue: false
                     input "notificationDevices", "capability.notification", title: "Send notification to device(s)?", required: false, multiple: true
@@ -290,6 +322,8 @@ def getNotificationMsgDescription(searchType) {
         if (settings.sendReminder) {
             answer += " Reminder minutes can be be added by using %eventReminderMin%."
         }
+    } else if (searchType == "Gmail") {
+        answer += "%messageTitle% to include message title, %messageBody% to include message body, %messageTo% to include message to, %messageFrom% to include message from, and %messageReceived% to include message received date."
     } else {
         answer += "%taskTitle% to include task title and %taskDueDate% to include task due date."
         if (settings.setOffset) {
@@ -307,7 +341,15 @@ def getNextItemDescription() {
     def answer
     if (state.item) {
         def item = (state.item instanceof ArrayList) ? state.item[0] : state.item
-        def itemTitle = (item.eventTitle) ? item.eventTitle : item.taskTitle
+        def itemTitle
+        if (searchType == "Calendar Event") {
+            itemTitle = item.eventTitle
+        } else if (searchType == "Gmail") {
+            itemTitle = item.messageTitle
+        } else {
+            itemTitle = item.taskTitle
+        }
+        
         if (itemTitle != " ") {
             def searchType = (settings.searchType) ? settings.searchType : "Item"
             def itemDetails = ""
@@ -322,6 +364,10 @@ def getNextItemDescription() {
                 itemDetails += (item.eventEndTime != item.scheduleEndTime) ? " (<b>End Offset</b>: ${formatDateTime(item.scheduleEndTime)}) " : " "
                 itemDetails += "\n<b>Location</b>: ${item.eventLocation}"
                 itemDetails += "\n<b>Event All Day</b>: ${item.eventAllDay}, <b>Reminder</b>: ${item.eventReminderMin} Minutes"
+            } else if (searchType == "Gmail") {
+                itemDetails += "<b>Body</b>: ${item.messageBody}\n"
+                itemDetails += "<b>Received</b>: ${formatDateTime(item.messageReceived)}\n"
+                itemDetails += "<b>Messages found</b>: ${state.item.size()}\n"
             } else {
                 itemDetails += "<b>Due Date</b>: ${formatDateTime(item.taskDueDate)}"
                 itemDetails += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
@@ -338,7 +384,13 @@ def getNextItemDescription() {
                 }
             }
             
-            answer = "<b>Next ${searchType}</b>: ${itemTitle}"
+            if (searchType == "Gmail") {
+                answer = "<b>Last Message</b>:\n"
+                answer += "<b>Title</b>: ${itemTitle}"
+            } else {
+                answer = "<b>Next ${searchType}</b>: ${itemTitle}"
+            }
+            
             answer += "\n${itemDetails}"
         }
     }
@@ -361,6 +413,8 @@ def getControlSwitchesDescription(searchType) {
     if (searchType == "Calendar Event") {
         answer.options.push("location")
         answer.options.push("description")
+    } else if (searchType == "Gmail") {
+        answer.options.push("body")
     }
     
     answer.instructions = "Options Explanation:\n"
@@ -393,7 +447,7 @@ def initialize() {
     // Sets Label of Trigger
     updateAppLabel()
     
-    if (settings.createChildSwitch != false) {
+    if (settings.createChildSwitch == true) {
         state.deviceID = "GCal_${app.id}"
         def childDevice = getChildDevice(state.deviceID)
         if (!childDevice) {
@@ -425,7 +479,8 @@ def initialize() {
             logDebug("initialize - creating schedule with cron string: ${cronString}")
         }
     }
-    poll()
+    //poll()
+    runIn(5, poll)
 }
 
 def getDefaultSwitchValue() {
@@ -452,6 +507,8 @@ def getNextItems() {
         answer = getNextTasks()
     } else if (settings.searchType == "Reminder") {
         answer = getNextReminders()
+    } else if (settings.searchType == "Gmail") {
+        answer = getNextMessages()
     } else {
         answer = getNextEvents()
     }
@@ -786,6 +843,80 @@ def completeReminder(taskID) {
     return answer
 }
 
+def getGmailQuery() {
+    def userSearchString = (!settings.search) ? "" : settings.search
+    def searchString = []
+    if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null) {
+        searchString.push("label:PERSONAL")
+        for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
+            def messageQueryLabel = settings.messageQueryLabels[i]
+            searchString.push("label:" + messageQueryLabel)
+        }
+    }
+    if (state.refreshed != null && settings.messageQueryAfterLastRefresh == true && userSearchString.indexOf("after:") == -1) {
+        def lastRefreshed = parseDateTime(state.refreshed).getTime() / 1000
+        searchString.push("after:${lastRefreshed}")
+    }
+    if (settings.search) {
+        searchString.push("${userSearchString}")
+    }
+    
+    return searchString.join(" ")
+}
+
+def getNextMessages() {
+    def item = [
+        messageTitle: " ",
+        messageBody: " ",
+        messageID: " ",
+        messageReceived: " ",
+        messageFrom: " ",
+        messageTo: " "
+    ]
+    
+    if (state.isPaused) {
+        log.warn "${app.label} is paused, cannot refresh."
+        return
+    }
+    
+    def logMsg = []
+    def searchString = getGmailQuery()
+    def setLabels
+    
+    if (settings.messageApplyLabels == true) {
+        def mailLabels = parent.getUserLabels()
+        def messageSetLabels = settings.messageSetLabels
+        setLabels = [
+            add: [],
+            remove: []
+        ]
+        mailLabels.each{key, value -> 
+            if (messageSetLabels.indexOf(key) > -1) {
+                setLabels.add.push(key)
+            } else {
+                setLabels.remove.push(key)
+            }
+        }
+    }
+    
+    def items = parent.getNextMessages(searchString, setLabels)
+    if (items && items.size() > 0) {     
+        for (int i = 0; i < items.size(); i++) {
+            items[i].scheduleStartTime = new Date(items[i].messageReceived.getTime())
+            //Toggle switch after 10 seconds
+            items[i].scheduleEndTime = new Date(now() + (1000 * 10).toLong())
+        }
+        item  = items[0]
+    }
+    
+    logMsg.push("getNextMessages - BEFORE searchString: ${searchString}, setLabels: ${setLabels}, items:\n${items.join("\n")}\nAFTER ")
+    logMsg.push("item: ${item}")
+    logDebug("${logMsg}")
+    
+    runAdditionalActions((items.isEmpty()) ? [item] : items)
+    return item
+}
+
 def runAdditionalActions(items) {
     def logMsg = ["runAdditionalActions - items: ${items}"]
     if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true) {
@@ -821,11 +952,25 @@ def runAdditionalActions(items) {
                     continue
                 }
                 
-                def previousItem = (previousItems.toString().indexOf("eventID") > -1) ? previousItems.find{it.eventID == item.eventID} : previousItems.find{it.taskID == item.taskID}
-                def itemCompare = compare2Items(item, previousItem)
                 def scheduleItem = [:]
+                def previousItem
+                switch(settings.searchType) {
+                    case "Calendar Event":
+                        scheduleItem.id = item.eventID
+                        previousItem = previousItems.find{it.eventID == item.eventID}
+                        break
+                    case "Gmail":
+                        scheduleItem.id = item.messageID 
+                        previousItem = previousItems.find{it.messageID == item.messageID}
+                        break
+                    default:
+                        scheduleItem.id = item.taskID
+                        previousItem = previousItems.find{it.taskID == item.taskID}
+                        break
+                }
+                
+                def itemCompare = compare2Items(item, previousItem)
                 scheduleItem.time = (now() > item.scheduleStartTime.getTime()) ? nowTime : item.scheduleStartTime
-                scheduleItem.id = (item.eventID) ? item.eventID : item.taskID
                 if (item.containsKey("scheduleEndTime") && item.scheduleEndTime != null) {
                     scheduleItem.end = item.scheduleEndTime
                 }
@@ -906,7 +1051,7 @@ def runAdditionalActions(items) {
                         additionalActions.triggerStartNotification = "scheduled"
                     }
 
-                    if (searchType == "Calendar Event" && settings.notificationEndMsg != null && scheduleItem.containsKey("end")) {
+                    if (settings.searchType == "Calendar Event" && settings.notificationEndMsg != null && scheduleItem.containsKey("end")) {
                         logMsg.push("scheduling end notification ${scheduleItem}")
                         scheduleItems.triggerEndNotification.push(scheduleItem)
                         additionalActions.triggerEndNotification = "scheduled"
@@ -920,7 +1065,7 @@ def runAdditionalActions(items) {
                     scheduleItems.triggerStartRule.push(scheduleItem)
                     additionalActions.triggerStartRule = "scheduled"
 
-                    if (searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
+                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
                         logMsg.push("scheduling end rule actions ${scheduleItem}")
                         scheduleItems.triggerEndRule.push(scheduleItem)
                         additionalActions.triggerEndRule = "scheduled"
@@ -985,6 +1130,11 @@ def didVariablesChange(msg, changes) {
     def variableNames = gatherVariableNames(msg)
     logMsg.push("variableNames : ${variableNames}")
     for (int i = 0; i < changes.size(); i++) {
+        if (changes[i] == "newItem") {
+            answer = true
+            break
+        }
+        
         if (variableNames.indexOf(changes[i]) > -1) {
             answer = true
         }
@@ -1002,7 +1152,14 @@ def triggerAdditionalAction(ArrayList data=[]) {
     for (int i = 0; i < data.size(); i++) {
         def actionName = data[i].actionName
         def itemID = data[i].id
-        def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
+        def item
+        if (settings.searchType == "Calendar Event") {
+            item = items.find{it.eventID == itemID}
+        } else if (settings.searchType == "Gmail") {
+            item = items.find{it.messageID == itemID}
+        } else {
+            item = items.find{it.taskID == itemID}
+        }
         def itemIndex = items.indexOf(item)
         logMsg.push("\nactionName: ${actionName}, item BEFORE: ${item}")
         
@@ -1058,7 +1215,7 @@ def gatherControlSwitches(item) {
     def logMsg = ["gatherControlSwitches - item: ${item}"]
     def answer = [:]
     def separators = [",", ";"]
-    def ignoreChars = ["'", "’"]
+    def ignoreChars = ["'", "’", "’"]
     def triggerWords = ["on", "off"]
     def matchCommands = []
     def pattern
@@ -1071,8 +1228,11 @@ def gatherControlSwitches(item) {
         case "description":
             matchFieldValue = item.eventDescription
             break
+        case "body":
+            matchFieldValue = item.messageBody
+            break
         default:
-            matchFieldValue = (settings.searchType == "Calendar Event") ? item.eventTitle : item.taskTitle
+            matchFieldValue = (settings.searchType == "Calendar Event") ? item.eventTitle : (settings.searchType == "Gmail") ? item.messageTitle: item.taskTitle
     }
     matchFieldValue = matchFieldValue.toString().toLowerCase()
     logMsg.push("matchFieldValue before: ${matchFieldValue}")
@@ -1212,7 +1372,15 @@ def gatherControlSwitches(item) {
 
 def triggerSwitchControl(itemID) {
     def items = atomicState.item
-    def item = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
+    def item
+    if (settings.searchType == "Calendar Event") {
+        item = items.find{it.eventID == itemID}
+    } else if (settings.searchType == "Gmail") {
+        item = items.find{it.messageID == itemID}
+    } else {
+        item = items.find{it.taskID == itemID}
+    }
+    
     def matchSwitches = [:]
     if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerSwitchControl") && !item.additionalActions.triggerSwitchControl.matchSwitches.isEmpty()) {
         matchSwitches = item.additionalActions.triggerSwitchControl.matchSwitches
@@ -1350,8 +1518,16 @@ def composeNotification(fromFunction, msg, itemID) {
     if (msg.indexOf("%") > -1) {
         def items = atomicState.item
         if (itemID) {
-            def tempItem = (items.toString().indexOf("eventID") > -1) ? items.find{it.eventID == itemID} : items.find{it.taskID == itemID}
+            def tempItem
+            if (settings.searchType == "Calendar Event") {
+                tempItem = items.find{it.eventID == itemID}
+            } else if (settings.searchType == "Gmail") {
+                tempItem = items.find{it.messageID == itemID}
+            } else {
+                tempItem = items.find{it.taskID == itemID}
+            }
             def itemIndex = items.indexOf(tempItem)
+            
             def tempItems = []
             for (int t = itemIndex; t < items.size(); t++) {
                 tempItems.push(items[t])
@@ -1383,7 +1559,7 @@ def composeNotification(fromFunction, msg, itemID) {
                     default:
                         value = item[variableName].toString()
                 }
-                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime"].indexOf(variableName) > -1) {
+                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
                     value = formatDateTime(value)
                 }
                 
@@ -1663,7 +1839,7 @@ def appButtonHandler(btn) {
 			atomicState.isPaused = false
 			break
         case "refreshButton":
-			poll()
+		    poll()
 			return
     }
     updated()
