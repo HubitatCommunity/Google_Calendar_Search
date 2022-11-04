@@ -1,4 +1,4 @@
-def driverVersion() { return "3.4.2" }
+def driverVersion() { return "3.5.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -39,6 +39,12 @@ metadata {
         attribute "taskID", "string"
         attribute "taskDueDate", "string"
         attribute "repeat", "string" //Only comes across for Reminders
+        
+        //Gmail
+        attribute "messageTitle", "string"
+        attribute "messageBody", "string"
+        attribute "messageReceived", "string"
+        attribute "messageCount", "number"
         
 	}
     
@@ -96,7 +102,10 @@ def poll() {
                 state.kind = (value.indexOf("#") > -1) ? value.split("#")[1] : value
                 itemFound = true
                 continue
-            } else if (["scheduleStartTime", "scheduleEndTime", "recurrenceId", "additionalActions"].indexOf(key) > -1 && value != " ") {
+            } else if (["labelIDs", "messageID", "messageTo", "messageFrom"].indexOf(key) > -1) {
+                // Don't process these keys
+                continue
+            } else if (["scheduleStartTime", "scheduleEndTime", "recurrenceId", "threadID", "additionalActions"].indexOf(key) > -1 && value != " ") {
                 // Don't process these keys until later
                 itemFound = true
                 continue
