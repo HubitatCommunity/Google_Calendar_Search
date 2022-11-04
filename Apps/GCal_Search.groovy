@@ -1,4 +1,4 @@
-def appVersion() { return "3.4.2" }
+def appVersion() { return "3.5.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -43,6 +43,7 @@ definition(
 
 preferences {
     page(name: "mainPage")
+    page(name: "addNotificationDevice")
 	page(name: "authenticationPage")
     page(name: "utilitiesPage")
     page name: "authenticationReset"
@@ -62,7 +63,19 @@ def mainPage() {
                 app(name: "childApps", appName: "GCal Search Trigger", namespace: "HubitatCommunity", title: "New Search...", multiple: true)
                 paragraph "${getFormat("line")}"
             }
-        }	  
+
+            section("${getFormat("box", "Gmail Notification Devices")}") {
+                if (state.scopesAuthorized.indexOf("mail.google.com") > -1) {
+                    clearNotificationDeviceSettings()
+                    href ("addNotificationDevice", description: "Click to add an email notification device", title: "Add Gmail Notification Device")
+                    paragraph "${getFormat("text", "<b>Existing Gmail Notification Devices:</b>\n${getNotificationDevices()}")}"
+                    paragraph "${getFormat("line")}"
+
+                } else {
+                    paragraph "${getFormat("text", "This app is capable of creating Gmail Notification devices to send email notifications from rules. In order to leverage this feature:\n1. Enable the <a href='https://console.cloud.google.com/apis/api/gmail.googleapis.com' target='_blank'>Gmail API</a> in the Google Console\n2. Click Google API Authorization below and then Reset Google Authentication\n3. Follow steps to complete the Google authentication process again and be sure to allow Hubitat access to Gmail when prompted.")}"
+                }
+            }
+        } 
         section("${getFormat("box", "Authentication")}") {
             if (!isAuthorized) {
                 paragraph "${getFormat("warning", "Authentication Problem! Please click the button below to setup Google API Authorization.")}"
@@ -178,6 +191,82 @@ def utilitiesPage() {
     }
 }
 
+def addNotificationDevice() {
+    dynamicPage(name: "addNotificationDevice", title: "${getFormat("box", "Add Gmail Notification Device")}", uninstall: false, install: false, nextPage: "mainPage") {
+        section() {
+            if (state.missingDriver == null) {
+                paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
+                input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
+                input "notifTo", "text", title: "Email address to send notification", required: false, submitOnChange: true
+                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", required: false, submitOnChange: true
+                paragraph "${getFormat("text", "<b>Note:</b> the subject of the email message can be dynamically set by starting the notification with 'Subject:' followed by a ',' (comma) and the content of the notification. For example 'Subject:Urgent from Hubitat,Dishwasher water sensor is wet!' will make the email subject 'Urgent from Hubitat' and the body of the email 'Dishwasher water sensor is wet!'.")}"
+                if (settings.notifLabel && settings.notifTo && settings.notifSubject) {
+                    input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
+                }
+                paragraph "${getFormat("line")}"
+                paragraph "${getFormat("text", "<b>Existing Gmail Notification Devices:</b>\n${getNotificationDevices()}")}"
+            } else {
+                paragraph "${getFormat("text", "Gmail Notification Device driver is missing and a notification device cannot be created.\n1. Please download the <a href='https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy' target='_blank'>Gmail Notification Device driver from GitHub</a>\n2. Navigate to <a href='/driver/list' target='_blank'>Drivers code</a> and install this driver\n3. Once installed click the 'Driver Installed' button to continue adding Gmail notification devices")}"
+                input name: "driverInstalled", type: "button", title: "Driver Installed", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
+            }
+		}
+    }
+}
+
+def getNotificationDevices() {
+    def answer = []
+    def childDevices = getAllChildDevices()
+    for (int i = 0; i < childDevices.size(); i++) {
+        def child = childDevices[i]
+        def deviceURL = "http://${location.hub.localIP}/device/edit/${child.id}"
+        def deviceDetails = "<a href='${deviceURL}' target='_blank'>${child.displayName}</a>"
+        answer.push(deviceDetails)
+    }
+    
+    return answer.join("\n")
+}
+
+def clearNotificationDeviceSettings() {
+    app.updateSetting("notifLabel", [value:"", type:"text"])
+    app.updateSetting("notifTo", [value:"", type:"text"])
+    app.updateSetting("notifSubject", [value:"", type:"text"])
+}
+
+def appButtonHandler(btn) {
+    switch(btn) {
+        case "createChild":
+            createDevice()
+            clearNotificationDeviceSettings()
+            break
+        case "driverInstalled":
+            atomicState.missingDriver = null
+            return
+    }
+}
+
+def createDevice(){
+    try{
+    	state.vsIndex = (state.vsIndex) ? state.vsIndex + 1 : 1	//increment even on invalid device type
+        def deviceLabel = settings.notifLabel.toString().trim()
+		def deviceID = deviceLabel.toLowerCase().replace(" ", "_")
+        deviceID += "-${state.vsIndex}"
+		logDebug "Attempting to create Virtual Device: Label: ${deviceLabel}, deviceID: ${deviceID}"
+		childDevice = addChildDevice("HubitatCommunity", "Gmail Notification Device", "${deviceID}", [label: "${deviceLabel}", isComponent: false])
+    	logDebug "createDevice Success"
+		childDevice.updateSetting("toEmail",[value:"${settings.notifTo}",type:"text"])
+        childDevice.updateSetting("toSubject",[value:"${settings.notifSubject}",type:"text"])
+		logDebug "toEmail Update Success"
+        app.removeSetting("missingDriver")
+    } catch (Exception e) {
+        if (e.toString().indexOf("Device type 'Gmail Notification Device' in namespace 'HubitatCommunity' not found") > -1) {
+            log.error "Gmail Notification Device driver is missing.  Please navigate to Drivers code and install this driver.\\nInstructions can be found in the Hubitat Documentation: https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Drivers\\nDriver can be found here: https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy"
+            state.missingDriver = true
+        } else {
+            log.error "Unable to create device. Error: ${e}"
+        }
+    }
+}
+
 def resyncChildApps() {
     childApps.each {
         child ->
@@ -235,7 +324,7 @@ def oauthEnabled() {
             accessToken = createAccessToken()
         } catch (e) {
             if (e.toString().indexOf("OAuth is not enabled for this App") > -1) {
-                log.error "OAuth must be enabled on the GCal Search app.  Please navigate to Apps Code and enable OAuth.  Instructions can be found in the Hubitat Documentation: https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps"
+                log.error "OAuth must be enabled on the GCal Search app.  Please navigate to Apps code and enable OAuth.  Instructions can be found in the Hubitat Documentation: https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps"
             } else {
                 log.error "${e}"
             }
@@ -267,7 +356,7 @@ def getOAuthInitUrl() {
 		client_id: getClientId(),
 		state: state.oauthInitState,
 		redirect_uri: getRedirectURL(),
-        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/reminders"
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/reminders https://mail.google.com/"
 	]
     
     OAuthInitUrl += "?" + toQueryString(oauthParams)
@@ -431,6 +520,7 @@ def apiGet(fromFunction, uri, path, queryParams) {
     logMsg.push("apiGet - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
     
     if (isAuthorized == true) {
+        def output = new JsonOutput()
         def apiParams = [
             uri: uri,
             path: path,
@@ -443,16 +533,18 @@ def apiGet(fromFunction, uri, path, queryParams) {
             httpGet(apiParams) {
                 resp ->
                 apiResponse = resp.data
-                logDebug "Resp Status: ${resp.status}}"
+                logDebug "Resp Status: ${resp.status}"
             }
         } catch (e) {
-            if (e.response.status == 401 && refreshAuthToken()) {
-                return apiGet(fromFunction, uri, path, queryParams)
-            } else if (e.response.status == 403) {
-                log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
-                apiResponse = "error"
+            if (e.toString().indexOf("HttpResponseException") > -1) {
+                if (e.response.status == 401 && refreshAuthToken()) {
+                    return apiGet(fromFunction, uri, path, queryParams)
+                } else if (e.response.status == 403) {
+                    log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                    apiResponse = "error"
+                }
             } else {
-                log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
     } else {
@@ -488,10 +580,10 @@ def apiPut(fromFunction, uri, path, bodyParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
                 return apiPut(fromFunction, uri, path, bodyParams)
             } else {
-                log.error "apiPut - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, ${e}"
             }
         }
     } else {
@@ -526,10 +618,10 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
                 return apiPatch(fromFunction, uri, path, bodyParams)
             } else {
-                log.error "apiPatch - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, ${e}"
             }
         }
     } else {
@@ -573,10 +665,10 @@ def apiPost(fromFunction, uri, path, protobuf, bodyParams) {
                 logDebug "apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
                 return apiPost(fromFunction, uri, path, bodyParams)
             } else {
-                log.error "apiPost - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, ${e}"
             }
         }
     } else {
@@ -595,7 +687,9 @@ def getCalendarList() {
     def calendarList = [:]
     def uri = "https://www.googleapis.com"
     def path = "/calendar/v3/users/me/calendarList"
-    def queryParams = [format: 'json']
+    def queryParams = [
+        format: 'json'
+    ]
     def calendars = apiGet("getCalendarList", uri, path, queryParams)
     logMsg.push("getCalendarList - path: ${path}, queryParams: ${queryParams}, calendars: ${calendars}")
     
@@ -702,7 +796,9 @@ def getTaskList() {
     def taskList = [:]
     def uri = "https://www.googleapis.com"
     def path = "/tasks/v1/users/@me/lists"
-    def queryParams = [format: 'json']
+    def queryParams = [
+        format: 'json'
+    ]
     def taskLists = apiGet("getTaskList", uri, path, queryParams)
     logMsg.push("getTaskList - path: ${path}, queryParams: ${queryParams}, taskLists: ${taskLists}")
     
@@ -911,6 +1007,143 @@ def completeReminder(taskID) {
 
 /* ============================= End Google Reminder ============================= */
 
+/* ============================= Start Gmail ============================= */
+
+def getUserLabels() {
+    def logMsg = []
+    def userLabelList = [:]
+    def uri = "https://gmail.googleapis.com"
+    def path = "/gmail/v1/users/me/labels"
+    def queryParams = [:]
+    def userLabels = apiGet("getUserLabels", uri, path, queryParams)
+    logMsg.push("getUserLabels - path: ${path}, queryParams: ${queryParams}, userLabels: ${userLabels}")
+
+    if (userLabels instanceof Map && userLabels.labels.size() > 0) {
+        def includeSystemLabels = ["INBOX", "IMPORTANT", "STARRED", "TRASH", "UNREAD"]
+        for (int i = 0; i < userLabels.labels.size(); i++) {
+            def userLabelItem = userLabels.labels[i]
+            //if (userLabelItem.containsKey("labelListVisibility") || ignoreLabels.indexOf(userLabelItem.id) > -1) continue
+            if (userLabelItem.type == "system" && includeSystemLabels.indexOf(userLabelItem.id) == -1) continue
+            userLabelList[userLabelItem.id] = userLabelItem.name
+        }
+        logMsg.push("userLabelList: ${userLabelList}")
+    } else {
+        userLabelList = userLabels
+    }
+
+    logDebug("${logMsg}")
+    return userLabelList
+}
+
+def getNextMessages(search, setlabelList=null) {    
+    def logMsg = ["getNextMessages - search: ${search}, setlabelList: ${setlabelList}"]
+    def messageList = []
+    def uri = "https://gmail.googleapis.com"
+    def path = "/gmail/v1/users/me/messages"
+    def queryParams = [
+        //maxResults: 1,
+        q: "${search}"
+    ]
+    
+    if (labelList != null) {
+        //queryParams['labelIds'] = "${labelList}"
+    }
+    
+    def messages = apiGet("getNextMessages", uri, path, queryParams)
+    logMsg.push("queryParams: ${queryParams}, messages: ${messages}")
+    def messageIDs = []
+    
+    if (messages.resultSizeEstimate > 0) {
+        for (int i = 0; i < messages.messages.size(); i++) {
+            def message = messages.messages[i]
+            def messageID = message.id
+            messageIDs.push(messageID)
+
+            def messageDetails = getMessage(messageID)
+            messageDetails.kind = "message"
+            messageList.push(messageDetails)
+        }
+
+        if (setlabelList != null) {
+            batchModifyMessages(messageIDs, setlabelList.add, setlabelList.remove)
+        }
+    }
+    
+    messageList.sort{it.messageReceived}
+    logMsg.push("messageList:\n${messageList.join("\n")}")
+    logDebug("${logMsg}")
+    return messageList
+}
+
+def getMessage(messageID) {    
+    def logMsg = ["getMessage - messageID: ${messageID}"]
+    def uri = "https://gmail.googleapis.com"
+    def path = "/gmail/v1/users/me/messages/${messageID}"
+    def queryParams = [:]
+    def message = apiGet("getMessage", uri, path, queryParams)
+    logMsg.push("queryParams: ${queryParams}, message: ${message}")
+    def messageDetails = [:]
+        
+    if (message && message.id) {
+        messageDetails.messageID = message.id
+        messageDetails.threadID = message.threadId
+        messageDetails.labelIDs = message.labelIds
+        messageDetails.messageBody = message.snippet
+        messageDetails.messageReceived = new Date(message.internalDate.toLong())
+        def payloadHeaders = message.payload.headers
+        messageDetails.messageTitle = payloadHeaders.find{it.name == "Subject"}.value
+        messageDetails.messageFrom = payloadHeaders.find{it.name == "From"}.value.replace("\u003c", "").replace("\u003e", "")
+        messageDetails.messageTo = payloadHeaders.find{it.name == "To"}.value.replace("\u003c", "").replace("\u003e", "")
+    }
+    
+    logMsg.push("messageDetails: ${messageDetails}")
+    logDebug("${logMsg}")
+    return messageDetails
+}
+
+def batchModifyMessages(messageIDs, addLabels, removeLabels) {
+    def logMsg = ["batchModifyMessages - messageIDs: ${messageIDs}, addLabels: ${addLabels}, removeLabels: ${removeLabels} - "]
+    def uri = "https://gmail.googleapis.com"
+    def path = "/gmail/v1/users/me/messages/batchModify"
+    def bodyParams = [
+        ids: messageIDs,
+        addLabelIds: addLabels,
+        removeLabelIds: removeLabels
+    ]
+    def messages = apiPost("batchModifyMessages", uri, path, false, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, messages: ${messages}")
+    logDebug("${logMsg}")
+    return messages
+}
+
+def sendMessage(toEmail, subject, message) {
+    def logMsg = ["sendMessage - toEmail: ${toEmail}, subject: ${subject}, message: ${message} - "]
+    String stringMessage = "To: " + toEmail
+    if (message.startsWith("Subject:") && message.indexOf(",") > -1) {
+        def messageSplit = message.split(",")
+        subject = messageSplit[0].replace("Subject:", "")
+        message = messageSplit[1].trim()
+    }
+    stringMessage += "\nSubject: " + subject
+    if (message.indexOf("\\n") > -1) {
+        message = message.replace("\\n", "%n")
+    }
+    stringMessage += "\n\n" + String.format(message)
+    logMsg.push("stringMessage: ${stringMessage}")
+    def base64String = stringMessage.encodeAsBase64().toString()
+    def uri = "https://gmail.googleapis.com"
+    def path = "/gmail/v1/users/me/messages/send"
+    def bodyParams = [
+        raw: base64String
+    ]
+    def messages = apiPost("sendMessage", uri, path, false, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, messages: ${messages}")
+    logDebug("${logMsg}")
+    return messages
+}
+
+/* ============================= End Gmail ============================= */
+
 def displayMessageAsHtml(message) {
     def html = """
         <!DOCTYPE html>
@@ -1012,6 +1245,7 @@ def getFormat(type, displayText=""){ // Modified from @Stephack and @dman2306 Co
     if(type == "text") return "<span style='font-size: 14pt;'>${displayText}</span>"
     if(type == "warning") return "<span style='font-size: 14pt;color:red'><strong>${displayText}</strong></span>"
     if(type == "line") return "<hr style='background-color:" + color + "; height: 1px; border: 0;'>"
+    if(type == "code") return "<textarea rows=1 class='mdl-textfield' readonly='true'>${displayText}</textarea>"
 }
 
 def getScopesAuthorized() {
@@ -1026,6 +1260,9 @@ def getScopesAuthorized() {
     }
     if (scopesAuthorized.indexOf("auth/reminders") > -1) {
         answer.push("Reminder")
+    }
+    if (scopesAuthorized.indexOf("mail.google.com") > -1) {
+        answer.push("Gmail")
     }
     
     return answer
