@@ -197,7 +197,7 @@ def addNotificationDevice() {
                 paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
                 input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
                 input "notifTo", "text", title: "Email address to send notification", required: false, submitOnChange: true
-                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false
+                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
                 paragraph "${getFormat("text", "<b>Note:</b> the subject of the email message can be dynamically set by starting the notification with 'Subject:' followed by a ',' (comma) and the content of the notification. For example 'Subject:Urgent from Hubitat,Dishwasher water sensor is wet!' will make the email subject 'Urgent from Hubitat' and the body of the email 'Dishwasher water sensor is wet!'.")}"
                 if (settings.notifLabel && settings.notifTo) {
                     input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
