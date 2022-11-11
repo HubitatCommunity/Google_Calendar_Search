@@ -1,4 +1,4 @@
-def driverVersion() { return "3.5.0" }
+def driverVersion() { return "3.5.1" }
 /**
  *  Gmail Notification Device Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy
@@ -56,6 +56,13 @@ def deviceNotification(message) {
     } else {
         logDebug("Device ${settings.toEmail} disabled: ${message}")
     }
+}
+
+def getPreferenceValues() {
+    def answer = [:]
+    answer.toEmail = settings.toEmail
+    answer.toSubject = settings.toSubject
+    return answer
 }
 
 private logInfo(msg) {
