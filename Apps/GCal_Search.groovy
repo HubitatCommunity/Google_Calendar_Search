@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.0" }
+def appVersion() { return "3.5.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -67,12 +67,11 @@ def mainPage() {
             section("${getFormat("box", "Gmail Notification Devices")}") {
                 if (state.scopesAuthorized.indexOf("mail.google.com") > -1) {
                     clearNotificationDeviceSettings()
-                    href ("addNotificationDevice", description: "Click to add an email notification device", title: "Add Gmail Notification Device")
-                    paragraph "${getFormat("text", "<b>Existing Gmail Notification Devices:</b>\n${getNotificationDevices()}")}"
+                    paragraph getNotificationDevices()
                     paragraph "${getFormat("line")}"
 
                 } else {
-                    paragraph "${getFormat("text", "This app is capable of creating Gmail Notification devices to send email notifications from rules. In order to leverage this feature:\n1. Enable the <a href='https://console.cloud.google.com/apis/api/gmail.googleapis.com' target='_blank'>Gmail API</a> in the Google Console\n2. Click Google API Authorization below and then Reset Google Authentication\n3. Follow steps to complete the Google authentication process again and be sure to allow Hubitat access to Gmail when prompted.")}"
+                    paragraph "${getFormat("text", "This app is capable of creating Gmail Notification devices to send email notifications from rules. In order to leverage this feature:\n1. Enable the <a href='https://console.cloud.google.com/apis/api/gmail.googleapis.com' target='_blank'>Gmail API</a> in the Google Console\n2. Click Google API Authorization below and then Reset Google Authentication. Leave your existing credentials alone; you just need to reauthorize the APIs including Gmail\n3. Follow steps to complete the Google authentication process again and be sure to allow Hubitat access to Gmail when prompted.")}"
                 }
             }
         } 
@@ -148,7 +147,7 @@ def authenticationPage() {
 def oAuthInstructions() {
     def text = "<p><span style='text-decoration:underline;font-size: 14pt;'><strong>Steps to enable OAuth:</strong></span></p>"
     text += "<ol style='list-style-position: inside;font-size:15px;'>"
-    text += "<li>Please <a href='http://${location.hub.localIP}/app/list' target='_blank'><u>click this link</u></a> to open another browser tab to enable this setting in Apps Code.</li>"
+    text += "<li>Please <a href='/app/list' target='_blank'><u>click this link</u></a> to open another browser tab to enable this setting in Apps Code.</li>"
     text += "<ul><li> Instructions to enable OAuth can be found in the 'Enabling OAuth' Section of the <a href='https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps' target='_blank'><u>How to Install Custom Apps</u></a> article.</li></ul>"
     text += "<li>After completing Step 1 is <a href='authenticationPage'><u>refresh this page</u></a> (browser refresh) to continue setup.</li>"
     text += "</ol>"
@@ -161,7 +160,7 @@ def authenticationInstructions() {
     text += "<ul style='list-style-position: inside;font-size:15px;'>"
     text += "<li>Tap the 'Authenticate GCal Search' button below to start the authentication process.</li>"
     text += "<li>A popup will appear walking you through process as outlined in the instructions on GitHub.</li>"
-    text += "<li>Be sure to select the appropriate access to Google Calendar, Google Reminders, and/or Google Tasks.</li>"
+    text += "<li>Be sure to select the appropriate access to Google Calendar, Google Reminders, Google Tasks and/or Gmail.</li>"
     text += "<li>Troubleshooting Note: If the popup presents an 'Authorization Error, Error 400: redirect_uri_mismatch' please check your OAuth credential in the Google Console to ensure it is of type Web application and that the redirect URI is set correctly.</li>"
     text += "</ul>"
     
@@ -198,13 +197,13 @@ def addNotificationDevice() {
                 paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
                 input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
                 input "notifTo", "text", title: "Email address to send notification", required: false, submitOnChange: true
-                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", required: false, submitOnChange: true
+                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false
                 paragraph "${getFormat("text", "<b>Note:</b> the subject of the email message can be dynamically set by starting the notification with 'Subject:' followed by a ',' (comma) and the content of the notification. For example 'Subject:Urgent from Hubitat,Dishwasher water sensor is wet!' will make the email subject 'Urgent from Hubitat' and the body of the email 'Dishwasher water sensor is wet!'.")}"
-                if (settings.notifLabel && settings.notifTo && settings.notifSubject) {
+                if (settings.notifLabel && settings.notifTo) {
                     input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
                 }
                 paragraph "${getFormat("line")}"
-                paragraph "${getFormat("text", "<b>Existing Gmail Notification Devices:</b>\n${getNotificationDevices()}")}"
+                paragraph "${getFormat("text", "<b>Existing Gmail Notification Devices:</b>\n${getNotificationDevices(false)}")}"
             } else {
                 paragraph "${getFormat("text", "Gmail Notification Device driver is missing and a notification device cannot be created.\n1. Please download the <a href='https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy' target='_blank'>Gmail Notification Device driver from GitHub</a>\n2. Navigate to <a href='/driver/list' target='_blank'>Drivers code</a> and install this driver\n3. Once installed click the 'Driver Installed' button to continue adding Gmail notification devices")}"
                 input name: "driverInstalled", type: "button", title: "Driver Installed", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
@@ -213,17 +212,40 @@ def addNotificationDevice() {
     }
 }
 
-def getNotificationDevices() {
-    def answer = []
+def getNotificationDevices(showAdd=true) {
     def childDevices = getAllChildDevices()
-    for (int i = 0; i < childDevices.size(); i++) {
-        def child = childDevices[i]
-        def deviceURL = "http://${location.hub.localIP}/device/edit/${child.id}"
-        def deviceDetails = "<a href='${deviceURL}' target='_blank'>${child.displayName}</a>"
-        answer.push(deviceDetails)
-    }
+    if (childDevices.size() == 0 && showAdd == false) return "None"
     
-    return answer.join("\n")
+    String str = "<script src='https://code.iconify.design/iconify-icon/1.0.0/iconify-icon.min.js'></script>"
+	str += "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" +
+		"</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black'>" +
+		"<thead><tr style='border-bottom:2px solid black'>" + 
+        "<th style='border-right:2px solid black'>Device Name</th>" +
+		"<th>Email Address</th>" +
+		"<th>Email Subject</th></tr></thead>"
+	childDevices.sort{it.displayName.toLowerCase()}.each {dev ->
+		def devPrefs = dev.getPreferenceValues()
+		String devLink = "<a href='/device/edit/$dev.id' target='_blank' title='Open Device Page for $dev'>$dev"
+		str += "<tr style='color:black'><td style='border-right:2px solid black'>$devLink</td>" +
+            "<td>${devPrefs.toEmail}</td>" +
+			"<td>${devPrefs.toSubject}</td></tr>"
+	}
+	str += "</table>"
+    if (showAdd) {
+        String newNotificationDevice = buttonLink("createNewDevice", "<iconify-icon icon='fluent:mail-add-16-regular'></iconify-icon>", "#007009", "25px")
+        str += "<table class='mdl-data-table tstat-col' style=';border:none'><thead><tr>" +
+            //"<th style='border-bottom:2px solid black;border-right:2px solid black;border-left:2px solid black;width:50px' title='Create New Gmail Notification Device'><a href='/installedapp/configure/${app.id}/mainPage/addNotificationDevice'>$newNotificationDevice</a></th>" +
+            "<th style='border-bottom:2px solid black;border-right:2px solid black;border-left:2px solid black;width:50px' title='Create New Gmail Notification Device'><a href='addNotificationDevice'>$newNotificationDevice</a></th>" +
+            "<th style='border:none;color:green;font-size:1.125rem'><b><i class='he-arrow-left2' style='vertical-align:middle'></i> Create New Gmail Notification Device</b></th>" +
+            "</tr></thead></table>"
+    }
+    str += "</div>"
+    
+    return str
+}
+
+String buttonLink(String btnName, String linkText, color = "#1A77C9", font = "15px") {
+	"<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:$font'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
 }
 
 def clearNotificationDeviceSettings() {
