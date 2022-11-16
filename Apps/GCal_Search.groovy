@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.1" }
+def appVersion() { return "3.5.2" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -769,15 +769,19 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             eventDetails.kind = event.kind
             //eventDetails.timeZone = events.timeZone
             eventDetails.eventID = event.id
-            eventDetails.eventTitle = event.summary.trim()
+            eventDetails.eventTitle = event.eventTitle ? event.summary.trim() : "none"
             eventDetails.eventLocation = event.location ? event.location : "none"
-            eventDetails.eventDescription = event.description ? event.description : "none"
             eventDetails.eventReminderMin = reminderMinutes
-            //Description is an HTML field, remove html tags, special characters, and spaces
-            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
-            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\<.*?\\>", " ")
-            eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\&.*?\\;", " ")
-            eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll(" +", " ")
+            if (event.description) {
+                eventDetails.eventDescription = event.description
+                //Description is an HTML field, remove html tags, special characters, and spaces
+                eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
+                eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\<.*?\\>", " ")
+                eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\&.*?\\;", " ")
+                eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll(" +", " ")
+            } else {
+                eventDetails.eventDescription = "none"
+            }
 
             def eventAllDay
             def eventStartTime
@@ -858,7 +862,7 @@ def getNextTasks(taskList, search, endTimePreference) {
             def task = tasks.items[i]
             def taskDetails = [:]
             taskDetails.kind = task.kind
-            taskDetails.taskTitle = task.title.trim()
+            taskDetails.taskTitle = taskDetails.taskTitle ? task.title.trim() : "none"
             taskDetails.taskID = task.id
             def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
             taskDetails.taskDueDate = sdf.parse(task.due)
@@ -912,7 +916,7 @@ def getNextReminders(search, endTimePreference) {
             if (dueDate <= dueMax) {
                 def reminderDetails = [:]
                 reminderDetails.kind = "reminder"
-                reminderDetails.taskTitle = reminder.title.trim()
+                reminderDetails.taskTitle = reminderDetails.taskTitle ? reminder.title.trim() : "none"
                 reminderDetails.taskID = reminder.taskId.serverAssignedId
                 reminderDetails.taskDueDate = dueDate
                 if (reminder.recurrenceInfo && reminder.recurrenceInfo.recurrence.frequency) {
@@ -948,7 +952,7 @@ def getSpecificReminder(taskID) {
             def reminder = reminders.data.task[i]
             def reminderDetails = [:]
             reminderDetails.kind = "reminder"
-            reminderDetails.taskTitle = reminder.title.trim()
+            reminderDetails.taskTitle = reminderDetails.taskTitle ? reminder.title.trim() : "none"
             reminderDetails.taskID = reminder.taskId.serverAssignedId
             reminderDetails.taskDueDate = getReminderDate(reminder.dueDate)
             reminderList.push(reminderDetails)
@@ -1110,10 +1114,12 @@ def getMessage(messageID) {
         messageDetails.messageID = message.id
         messageDetails.threadID = message.threadId
         messageDetails.labelIDs = message.labelIds
-        messageDetails.messageBody = message.snippet
+        def messageBody = message.snippet
+        messageDetails.messageBody = messageBody ? messageBody : "none"
         messageDetails.messageReceived = new Date(message.internalDate.toLong())
         def payloadHeaders = message.payload.headers
-        messageDetails.messageTitle = payloadHeaders.find{it.name == "Subject"}.value
+        def messageTitle = payloadHeaders.find{it.name == "Subject"}.value
+        messageDetails.messageTitle = messageTitle ? messageTitle : "none"
         messageDetails.messageFrom = payloadHeaders.find{it.name == "From"}.value.replace("\u003c", "").replace("\u003e", "")
         messageDetails.messageTo = payloadHeaders.find{it.name == "To"}.value.replace("\u003c", "").replace("\u003e", "")
     }
