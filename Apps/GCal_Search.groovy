@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.2" }
+def appVersion() { return "3.5.3" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -769,7 +769,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             eventDetails.kind = event.kind
             //eventDetails.timeZone = events.timeZone
             eventDetails.eventID = event.id
-            eventDetails.eventTitle = event.eventTitle ? event.summary.trim() : "none"
+            eventDetails.eventTitle = event.summary ? event.summary.trim() : "none"
             eventDetails.eventLocation = event.location ? event.location : "none"
             eventDetails.eventReminderMin = reminderMinutes
             if (event.description) {
@@ -862,7 +862,7 @@ def getNextTasks(taskList, search, endTimePreference) {
             def task = tasks.items[i]
             def taskDetails = [:]
             taskDetails.kind = task.kind
-            taskDetails.taskTitle = taskDetails.taskTitle ? task.title.trim() : "none"
+            taskDetails.taskTitle = task.title ? task.title.trim() : "none"
             taskDetails.taskID = task.id
             def sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
             taskDetails.taskDueDate = sdf.parse(task.due)
@@ -916,7 +916,7 @@ def getNextReminders(search, endTimePreference) {
             if (dueDate <= dueMax) {
                 def reminderDetails = [:]
                 reminderDetails.kind = "reminder"
-                reminderDetails.taskTitle = reminderDetails.taskTitle ? reminder.title.trim() : "none"
+                reminderDetails.taskTitle = reminder.title ? reminder.title.trim() : "none"
                 reminderDetails.taskID = reminder.taskId.serverAssignedId
                 reminderDetails.taskDueDate = dueDate
                 if (reminder.recurrenceInfo && reminder.recurrenceInfo.recurrence.frequency) {
@@ -952,7 +952,7 @@ def getSpecificReminder(taskID) {
             def reminder = reminders.data.task[i]
             def reminderDetails = [:]
             reminderDetails.kind = "reminder"
-            reminderDetails.taskTitle = reminderDetails.taskTitle ? reminder.title.trim() : "none"
+            reminderDetails.taskTitle = reminder.title ? reminder.title.trim() : "none"
             reminderDetails.taskID = reminder.taskId.serverAssignedId
             reminderDetails.taskDueDate = getReminderDate(reminder.dueDate)
             reminderList.push(reminderDetails)
