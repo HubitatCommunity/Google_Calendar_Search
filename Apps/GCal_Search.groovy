@@ -772,7 +772,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             eventDetails.eventTitle = event.summary ? event.summary.trim() : "none"
             eventDetails.eventLocation = event.location ? event.location : "none"
             eventDetails.eventReminderMin = reminderMinutes
-            if (event.description) {
+            if (event.description && event.description != null && event.description.trim() != "") {
                 eventDetails.eventDescription = event.description
                 //Description is an HTML field, remove html tags, special characters, and spaces
                 eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
@@ -782,7 +782,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             } else {
                 eventDetails.eventDescription = "none"
             }
-
+            
             def eventAllDay
             def eventStartTime
             def eventEndTime
