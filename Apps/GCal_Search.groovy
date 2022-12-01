@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.3" }
+def appVersion() { return "3.5.4" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
