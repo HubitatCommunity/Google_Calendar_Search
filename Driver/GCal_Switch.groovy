@@ -1,4 +1,4 @@
-def driverVersion() { return "3.5.3" }
+def driverVersion() { return "3.5.4" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -21,6 +21,10 @@ metadata {
         capability "Polling"
 		capability "Refresh"
         capability "Switch"
+        
+        //Added to allow immediate refresh on HE Dashboards since it supports buttons
+        capability "PushableButton"
+        command "push", [[name: "Push invokes Refresh for use on Dashboard NOT REQUIRED", type: "NUMBER", description: ""]]
         
         attribute "lastUpdated", "string"
         
@@ -49,7 +53,7 @@ metadata {
 	}
     
     preferences {
-		input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
+        input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, options:["on","off"]
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
     }
@@ -73,6 +77,10 @@ def parse(String description) {
 
 // refresh status
 def refresh() {
+    poll()
+}
+
+def push(buttonNumber) {
     poll()
 }
 
