@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.4" }
+def appVersion() { return "3.5.5" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -1037,7 +1037,7 @@ def completeReminder(taskID) {
 
 def getUserLabels() {
     def logMsg = []
-    def userLabelList = [:]
+    def userLabelList = ["none":"NONE"]
     def uri = "https://gmail.googleapis.com"
     def path = "/gmail/v1/users/me/labels"
     def queryParams = [:]
