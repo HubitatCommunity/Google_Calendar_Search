@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.4" }
+def appVersion() { return "3.5.5" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -125,9 +125,9 @@ def mainPage() {
                     input name: "caseSensitive", type: "bool", title: "Enable case sensitive matching?", defaultValue: true
                 }
                 if (settings.searchType == "Gmail") {
-                    paragraph "${parent.getFormat("text", "By default this search trigger will query for unread emails in your Personal inbox (not social, forums, promotions, etc) and received after the last refreshed time (in Unix epoch time).  You may select labels to include as part of your query below or elect to search for all emails regardless of date received. If 'after:' or 'label:' is included in your search string, this will override these settings.")}"
+                    paragraph "${parent.getFormat("text", getGmailSearchDescription())}"
                     mailLabels = parent.getUserLabels()
-                    input name: "messageQueryLabels", title:"Search for emails with the following labels:", type: "enum", required:false, multiple:true, options:mailLabels, defaultValue: ["INBOX", "UNREAD"], submitOnChange: true
+                    input name: "messageQueryLabels", title:"Search for emails with the following labels:", type: "enum", required:true, multiple:true, options:mailLabels, defaultValue: ["INBOX", "UNREAD"], submitOnChange: true
                     input name: "messageQueryAfterLastRefresh", type: "bool", title: "Search for emails received since the last refresh of this app?", defaultValue: true, required: false, submitOnChange: true
                 }
                 input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
@@ -137,9 +137,9 @@ def mainPage() {
                     paragraph "${parent.getFormat("text", "When adjusting the Search Preferences of this app, you should test within <a href='${mailURL}' target='_blank'>the Gmail website</a> to ensure the right messages are found. The following is the query that will be used to query for emails.")}"
                     paragraph "${parent.getFormat("code", "${mailQuery}")}"
                     paragraph "${parent.getFormat("text", "<u>Add/Remove labels</u>: Labels can be added and removed to emails matching the search criteria which may help designate that an email was processed.  Enable this option to adjust the labels.")}"
-                    input name: "messageApplyLabels", type: "bool", title: "Add/Remove labels on matching emails?", defaultValue: false, required: false, submitOnChange: true
-                    if (settings.messageApplyLabels == true) {
-                        input name: "messageSetLabels", title:"Matched Email Labels. <b>Note</b>: Labels selected will be added to the emails and labels unselected will be <u>removed</u>.", type: "enum", required:false, multiple:true, options:mailLabels, defaultValue: ["UNREAD"]
+                    input name: "messageApplyLabels", type: "bool", title: "Add/Remove labels on matching emails?", defaultValue: true, required: false, submitOnChange: true
+                    if (settings.messageApplyLabels == null || settings.messageApplyLabels == true) {
+                        input name: "messageSetLabels", title:"Matched Email Labels. <b>Note</b>: Labels selected will be added to the emails and labels unselected will be <u>removed</u>. Choose NONE to remove all labels.", type: "enum", required:true, multiple:true, options:mailLabels, defaultValue: ["INBOX"]
                     }
                 }
                 paragraph "${parent.getFormat("line")}"
@@ -430,6 +430,19 @@ def getControlSwitchesDescription(searchType) {
     return answer
 }
 
+def getGmailSearchDescription() {
+    def answer = ""
+    answer = "Search Options:\n"
+    answer += "<ul style='list-style-position: inside;font-size:15px;'>"
+    answer += "<li>By default this will query for unread emails in the inbox received after the last refreshed time (in Unix epoch time)</li>"
+    answer += "<li>The default search labels (INBOX and UNREAD) can be adjusted in the selection below or manually in the Search String via 'label:' search</li>"
+    answer += "<li>The received query can be removed by toggling the 'Search for emails received...' setting below or manually in the Search String via 'after:' search</li>"
+    answer += "<li>By default any email matching the search criteria will remain in the inbox but the unread label will be removed. This can be adjusted with the Matched Email Labels setting below.</li>"
+    answer += "</ul>"
+    
+    return answer
+}
+
 def installed() {
 	state.isPaused = false
     initialize()
@@ -446,6 +459,14 @@ def initialize() {
     
     // Sets Label of Trigger
     updateAppLabel()
+    
+    // Since 'none' is a special label make sure no other labels are selected
+    if (settings.messageQueryLabels.indexOf("none") > -1 && settings.messageQueryLabels.size() > 1) {
+        app.updateSetting("messageQueryLabels", [value:'["none"]', type:"enum"])
+    }
+    if (settings.messageSetLabels.indexOf("none") > -1 && settings.messageSetLabels.size() > 1) {
+        app.updateSetting("messageSetLabels", [value:'["none"]', type:"enum"])
+    }
     
     if (settings.createChildSwitch == true) {
         state.deviceID = "GCal_${app.id}"
@@ -846,8 +867,7 @@ def completeReminder(taskID) {
 def getGmailQuery() {
     def userSearchString = (!settings.search) ? "" : settings.search
     def searchString = []
-    if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null) {
-        searchString.push("label:PERSONAL")
+    if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") == -1) {
         for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
             def messageQueryLabel = settings.messageQueryLabels[i]
             searchString.push("label:" + messageQueryLabel)
@@ -891,7 +911,9 @@ def getNextMessages() {
             remove: []
         ]
         mailLabels.each{key, value -> 
-            if (messageSetLabels.indexOf(key) > -1) {
+            if (key == "none") {
+                // do nothing
+            } else if (messageSetLabels.indexOf("none") == -1 && messageSetLabels.indexOf(key) > -1) {
                 setLabels.add.push(key)
             } else {
                 setLabels.remove.push(key)
