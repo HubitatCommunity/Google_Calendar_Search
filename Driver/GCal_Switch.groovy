@@ -1,4 +1,4 @@
-def driverVersion() { return "3.5.4" }
+def driverVersion() { return "3.5.5" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -145,7 +145,7 @@ def poll() {
             
             if (currentValue != compareValue) {
                 logMsg.push("Turning ${compareValue} switch")
-                logInfo(device.name + " is " + compareValue)
+                logInfo(compareValue)
                 result << sendEvent(name: "switch", value: compareValue)
                 syncValue = compareValue
             }
@@ -164,17 +164,19 @@ def poll() {
 }
 
 def on() {
-    sendEvent(name: "switch", value: "on")
-    logInfo(device.name + " is on")
-    syncChildSwitches("on")
-    updateTask("on")
+    def value = "on"
+    sendEvent(name: "switch", value: value)
+    logInfo(value)
+    syncChildSwitches(value)
+    updateTask(value)
 }
 
 def off() {
-    sendEvent(name: "switch", value: "off")
-    logInfo(device.name + " is off")
-    syncChildSwitches("off")
-    updateTask("off")
+    def value = "off"
+    sendEvent(name: "switch", value: value)
+    logInfo(value)
+    syncChildSwitches(value)
+    updateTask(value)
 }
 
 def updateTask(value) {
@@ -183,7 +185,7 @@ def updateTask(value) {
     }
     
     def taskID = device.currentValue("taskID")
-    if (taskID != "" && determineSwitch(true) != value) {
+    if (taskID != " " && determineSwitch(true) != value) {
         if (parent.completeItem()) {
             poll()
         } else {
@@ -244,9 +246,10 @@ def syncChildSwitches(value) {
     parent.syncChildSwitches(value)
 }
 
-private logInfo(msg) {
+private logInfo(value) {
     if (settings.txtEnable == true) {
-        log.info "$msg"
+        def deviceName = (device.label == null) ? device.name : device.label
+        log.info "${deviceName} is ${value}"
     }
 }
 
