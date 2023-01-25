@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.5" }
+def appVersion() { return "3.5.6" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -461,11 +461,13 @@ def initialize() {
     updateAppLabel()
     
     // Since 'none' is a special label make sure no other labels are selected
-    if (settings.messageQueryLabels.indexOf("none") > -1 && settings.messageQueryLabels.size() > 1) {
-        app.updateSetting("messageQueryLabels", [value:'["none"]', type:"enum"])
-    }
-    if (settings.messageSetLabels.indexOf("none") > -1 && settings.messageSetLabels.size() > 1) {
-        app.updateSetting("messageSetLabels", [value:'["none"]', type:"enum"])
+    if (settings.searchType == "Gmail") {
+        if (settings.messageQueryLabels.indexOf("none") > -1 && settings.messageQueryLabels.size() > 1) {
+            app.updateSetting("messageQueryLabels", [value:'["none"]', type:"enum"])
+        }
+        if (settings.messageSetLabels.indexOf("none") > -1 && settings.messageSetLabels.size() > 1) {
+            app.updateSetting("messageSetLabels", [value:'["none"]', type:"enum"])
+        }
     }
     
     if (settings.createChildSwitch == true) {
