@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.6" }
+def appVersion() { return "3.5.7" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -869,9 +869,11 @@ def completeReminder(taskID) {
 def getGmailQuery() {
     def userSearchString = (!settings.search) ? "" : settings.search
     def searchString = []
+    
     if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") == -1) {
+        def mailLabels = parent.getUserLabels()
         for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
-            def messageQueryLabel = settings.messageQueryLabels[i]
+            def messageQueryLabel = mailLabels[settings.messageQueryLabels[i]]
             searchString.push("label:" + messageQueryLabel)
         }
     }
