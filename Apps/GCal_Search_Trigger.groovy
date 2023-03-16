@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.7" }
+def appVersion() { return "4.0.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -107,6 +107,7 @@ def mainPage() {
                     }
                 } else if (settings.searchType == "Gmail") {
                     settings.GoogleMatching = true // Gmail must use Google Matching
+                    settings.appName = "Gmail Search"
                 } else {
                     logDebug("scopesAuthorized: ${scopesAuthorized}")
                     settings.GoogleMatching = false // Reminder API doesn't allow text searching
@@ -127,10 +128,14 @@ def mainPage() {
                 if (settings.searchType == "Gmail") {
                     paragraph "${parent.getFormat("text", getGmailSearchDescription())}"
                     mailLabels = parent.getUserLabels()
+                    if (settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") > -1 && settings.messageQueryLabels.size() > 1) {
+                        app.updateSetting("messageQueryLabels", [value:["none"], type:"enum"])
+                    }
                     input name: "messageQueryLabels", title:"Search for emails with the following labels:", type: "enum", required:true, multiple:true, options:mailLabels, defaultValue: ["INBOX", "UNREAD"], submitOnChange: true
                     input name: "messageQueryAfterLastRefresh", type: "bool", title: "Search for emails received since the last refresh of this app?", defaultValue: true, required: false, submitOnChange: true
                 }
-                input name: "search", type: "text", title: "Search String", required: true, submitOnChange: true
+                def requireSearchString = (settings.searchType == "Gmail" && (settings.messageQueryLabels == null || settings.messageQueryLabels.indexOf("none") == -1)) ? false : true
+                input name: "search", type: "text", title: "Search String", required: requireSearchString, submitOnChange: true
                 if (settings.searchType == "Gmail") {
                     def mailQuery = getGmailQuery()
                     def mailURL = "https://mail.google.com/mail/u/1/#search/" + URLEncoder.encode(mailQuery.toString())
@@ -146,7 +151,7 @@ def mainPage() {
             }
         }
 
-        if (settings.search) {
+        if (settings.search || settings.searchType == "Gmail") {
             section("${parent.getFormat("box", "Schedule Settings")}") {
                 paragraph "${parent.getFormat("text", "${settings.searchType} searches can be triggered once a day or periodically. Periodic options include every N hours, every N minutes, or you may enter a Cron expression.")}"
                 input name: "whenToRun", type: "enum", title: "When to Run", required: true, options:["Once Per Day", "Periodically"], submitOnChange: true
@@ -200,12 +205,13 @@ def mainPage() {
             }
         }
         
-        if (settings.search) {
+        if (settings.search || settings.searchType == "Gmail") {
             section("${parent.getFormat("box", "Child Switch Preferences")}") {
                 paragraph "${parent.getFormat("text", "<u>Create child switch</u>: By default this app will create and toggle a child switch when an item matches the search criteria.  Many inbuilt apps have restrictions based on the state of a switch where the rule won't fire if say for example a particular switch is turned on.  In other use cases, a child switch may bring unnecessary overhead.  Choose what you wish to happen when an item matches the search criteria.")}"
                 input name: "createChildSwitch", type: "bool", title: "Create child switch?", defaultValue: true, required: false, submitOnChange: true
                 if (settings.createChildSwitch != false) {
-                    def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
+                    def defName = (settings.search) ? settings.search : settings.appName
+                    defName = defName - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
                     input name: "deviceName", type: "text", title: "Switch Device Name (Name of the Switch that gets created by this search trigger)", required: true, multiple: false, defaultValue: "${defName} Switch"
                     paragraph "${parent.getFormat("text", "<u>Switch Default Value</u>: Adjust this setting to the switch value preferred when there is no task. If a task is found, the switch will toggle from this value.")}"
                     input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, defaultValue: "off", options:["on","off"]
@@ -295,10 +301,11 @@ def mainPage() {
             }
         }
         
-        if (settings.search) {
+        if (settings.search || settings.searchType == "Gmail") {
             section("${parent.getFormat("box", "App Preferences")}") {
-                def defName = settings.search - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
-                input name: "appName", type: "text", title: "Name this child app", required: true, multiple: false, defaultValue: "${defName}", submitOnChange: true
+                def defName = (settings.search) ? settings.search : settings.appName
+                defName = defName - "\"" - "\"" //.replaceAll(" \" [^a-zA-Z0-9]+","")
+                input name: "appName", type: "text", title: "Name this child app", required: true, defaultValue: "${defName}", submitOnChange: true
                 input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
                 paragraph "${parent.getFormat("line")}"
             }
@@ -869,7 +876,9 @@ def completeReminder(taskID) {
 def getGmailQuery() {
     def userSearchString = (!settings.search) ? "" : settings.search
     def searchString = []
-    
+    if (settings.messageQueryLabels == null && !state.installed) {
+        settings.messageQueryLabels = ["INBOX", "UNREAD"]
+    }
     if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") == -1) {
         def mailLabels = parent.getUserLabels()
         for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
