@@ -1,4 +1,4 @@
-def appVersion() { return "3.5.7" }
+def appVersion() { return "4.0.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -67,6 +67,12 @@ def mainPage() {
             section("${getFormat("box", "Gmail Notification Devices")}") {
                 if (state.scopesAuthorized.indexOf("mail.google.com") > -1) {
                     clearNotificationDeviceSettings()
+                    paragraph notificationDeviceInstructions()
+                    input name: "security", type: "bool", title: "Do you plan to send local files from File Manager <b>and</b> have hub security enabled? Credentials are required to get the local file.", defaultValue: false, submitOnChange: true
+                    if (settings.security == true) { 
+                        input name: "username", type: "string", title: "Hub Security Username", required: true
+                        input name: "password", type: "password", title: "Hub Security Password", required: true
+                    }
                     paragraph getNotificationDevices()
                     paragraph "${getFormat("line")}"
 
@@ -196,9 +202,8 @@ def addNotificationDevice() {
             if (state.missingDriver == null) {
                 paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
                 input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
-                input "notifTo", "text", title: "Email address to send notification", required: false, submitOnChange: true
+                input "notifTo", "text", title: "Default Email address to send notification (if one is not passed in the notification)", required: false, submitOnChange: true
                 input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
-                paragraph "${getFormat("text", "<b>Note:</b> the subject of the email message can be dynamically set by starting the notification with 'Subject:' followed by a ',' (comma) and the content of the notification. For example 'Subject:Urgent from Hubitat,Dishwasher water sensor is wet!' will make the email subject 'Urgent from Hubitat' and the body of the email 'Dishwasher water sensor is wet!'.")}"
                 if (settings.notifLabel && settings.notifTo) {
                     input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
                 }
@@ -210,6 +215,19 @@ def addNotificationDevice() {
             }
 		}
     }
+}
+
+def notificationDeviceInstructions() {
+    def text = "<p><span style='text-decoration;font-size: 14pt;'><strong>Email message settings can dynamically get set via notification message. <u>Optionally</u> include the following keys separated by commas at the beginning of the message, followed by the email body. Keys are case sensitive.</strong></span></p>"
+    text += "<ul style='list-style-position: inside;font-size:15px;'>"
+    text += "<li><u>To</u>: recipient@example.com <b>Note</b>: Multiple email addresses can be separated by ';' (semicolon)</li>"
+    text += "<li><u>Subject</u>: Dynamic Email Subject</li>"
+    text += "<li><u>File</u>: Exact name of file within your hub's File Manager</li>"
+    text += "<li>If including any dynamic settings from above, the final comma value should be the body of the email. The body is base64 encoded so HTML tags can be included in the email body if desired.</li>"
+    text += "<li>For example 'Subject:Urgent from Hubitat, To:newRecipient@example.com, File:CameraImage.jpg, &#60;b&#62;Dishwasher&#60;/b&#62; water sensor is wet!' will send the email to 'newRecipient@example.com', make the email subject 'Urgent from Hubitat', attach the 'CameraImage.jpg' file, and the body of the email '<b>Dishwasher</b> water sensor is wet!' with the word Dishwasher in bold.</li>"
+    text += "</ul>"
+    
+    return text
 }
 
 def getNotificationDevices(showAdd=true) {
@@ -654,30 +672,31 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
     return apiResponse
 }
 
-def apiPost(fromFunction, uri, path, protobuf, bodyParams) {
+def apiPost(fromFunction, apiPrefs, bodyParams) {
     def logMsg = []
     def apiResponse = [:]  
     def isAuthorized = authTokenValid(fromFunction)
-    logMsg.push("apiPost - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
+    logMsg.push("apiPost - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}, apiPrefs: ${apiPrefs}")
     
     if (isAuthorized == true) {
-        def contentType = "application/json"
-        
-        if (protobuf) {
-            contentType += "+protobuf"
-        }
-        
         def apiParams = [
-            uri: uri,
-            path: path,
+            uri: apiPrefs.uri,
+            path: (apiPrefs.containsKey("path")) ? apiPrefs.path : null,
             contentType: "application/json",
-            headers: ["Content-Type": contentType, "Authorization": "Bearer ${atomicState.authToken}"]
+            headers: ["Content-Type": apiPrefs.contentType, "Authorization": "Bearer ${atomicState.authToken}"]
         ]
+        
         if (bodyParams) {
             def output = new JsonOutput()
-            apiParams.body = output.toJson(bodyParams)
+            apiParams.body = (apiPrefs.jsonBody == true) ? output.toJson(bodyParams) : bodyParams
         }
-        logMsg.push("apiParams: ${apiParams}")
+        
+        def trimFilefromLog = false
+        
+        //Remove file contents from logging, if trying to troubleshoot the API, comment the following line so it gets logged. Performance issues will arise if this is left on.
+        trimFilefromLog = true
+        
+        logMsg.push("apiParams: ${(trimFilefromLog && apiParams.toString().indexOf("filename=") > -1) ? apiParams.toString().substring(0, apiParams.toString().indexOf("filename=")) : apiParams}")
         
         try {
             httpPost(apiParams) {
@@ -688,7 +707,7 @@ def apiPost(fromFunction, uri, path, protobuf, bodyParams) {
             }
         } catch (e) {
             if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
-                return apiPost(fromFunction, uri, path, bodyParams)
+                return apiPost(fromFunction, apiPrefs, bodyParams)
             } else {
                 log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, ${e}"
             }
@@ -897,8 +916,6 @@ def getNextReminders(search, endTimePreference) {
     endTimePreference = translateEndTimePref(endTimePreference)
     def logMsg = ["getNextReminders - search: ${search}, endTimePreference: ${endTimePreference}"]
     def reminderList = []
-    def uri = "https://reminders-pa.clients6.google.com"
-    def path = "/v1internalOP/reminders/list"
     def dueMax = getEndDate(endTimePreference, false)
     logMsg.push("dueMax: ${dueMax}")
     def bodyParams = [
@@ -906,8 +923,15 @@ def getNextReminders(search, endTimePreference) {
         //"utc_due_before_ms": dueMax.getTime()
         "due_before_ms": dueMax.getTime()
     ]
-    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+    
+    def apiPrefs = [
+        uri: "https://reminders-pa.clients6.google.com",
+        path: "/v1internalOP/reminders/list",
+        contentType: "application/json",
+        jsonBody: true
+    ]
+    def reminders = apiPost("getNextReminders", apiPrefs, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
         
     if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
         for (int i = 0; i < reminders.data.task.size(); i++) {
@@ -939,13 +963,18 @@ def getNextReminders(search, endTimePreference) {
 def getSpecificReminder(taskID) {
     def logMsg = ["getSpecificReminder - taskID: ${taskID}"]
     def reminderList = []
-    def uri = "https://reminders-pa.clients6.google.com"
-    def path = "/v1internalOP/reminders/get"
     def bodyParams = [
         "taskId": [['serverAssignedId': taskID]]
     ]
-    def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+    
+    def apiPrefs = [
+        uri: "https://reminders-pa.clients6.google.com",
+        path: "/v1internalOP/reminders/get",
+        contentType: "application/json",
+        jsonBody: true
+    ]
+    def reminders = apiPost("getSpecificReminder", apiPrefs, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
         
     if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
         for (int i = 0; i < reminders.data.task.size(); i++) {
@@ -982,16 +1011,21 @@ def getReminderDate(dueDate) {
 def deleteReminder(taskID) {
     def logMsg = ["deleteReminder - taskID: ${taskID}"]
     def reminderDeleted = false
-    def uri = "https://reminders-pa.clients6.google.com"
-    def path = "/v1internalOP/reminders/delete"
     def taskIDList = taskID.split(",")
     for (int i = 0; i < taskIDList.size(); i++) {
         taskID = taskIDList[i]
         def bodyParams = [
             "taskId": [["serverAssignedId": taskID]]
         ]
-        def reminders = apiPost("getNextReminders", uri, path, false, bodyParams)
-        logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+
+        def apiPrefs = [
+            uri: "https://reminders-pa.clients6.google.com",
+            path: "/v1internalOP/reminders/delete",
+            contentType: "application/json",
+            jsonBody: true
+        ]
+        def reminders = apiPost("deleteReminder", apiPrefs, bodyParams)
+        logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
 
         if (reminders.status == 200 ) {
             reminderDeleted = true
@@ -1006,8 +1040,6 @@ def deleteReminder(taskID) {
 def completeReminder(taskID) {
     def logMsg = ["completeReminder - taskID: ${taskID}"]
     def reminderCompleted = false
-    def uri = "https://reminders-pa.clients6.google.com"
-    def path = "/v1internalOP/reminders/update"
     def taskIDList = taskID.split(",")
     for (int i = 0; i < taskIDList.size(); i++) {
         taskID = taskIDList[i]
@@ -1017,9 +1049,15 @@ def completeReminder(taskID) {
             "4": ["1": ["1": taskID], "8": 1],
             "7": ["1": [1, 10, 3]],
         ]
-
-        def reminders = apiPost("getNextReminders", uri, path, true, bodyParams)
-        logMsg.push("bodyParams: ${bodyParams}, reminders: ${reminders}")
+        
+        def apiPrefs = [
+            uri: "https://reminders-pa.clients6.google.com",
+            path: "/v1internalOP/reminders/update",
+            contentType: "application/json+protobuf",
+            jsonBody: true
+        ]
+        def reminders = apiPost("completeReminder", apiPrefs, bodyParams)
+        logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
 
         if (reminders.status == 200 ) {
             reminderCompleted = true
@@ -1131,43 +1169,188 @@ def getMessage(messageID) {
 
 def batchModifyMessages(messageIDs, addLabels, removeLabels) {
     def logMsg = ["batchModifyMessages - messageIDs: ${messageIDs}, addLabels: ${addLabels}, removeLabels: ${removeLabels} - "]
-    def uri = "https://gmail.googleapis.com"
-    def path = "/gmail/v1/users/me/messages/batchModify"
     def bodyParams = [
         ids: messageIDs,
         addLabelIds: addLabels,
         removeLabelIds: removeLabels
     ]
-    def messages = apiPost("batchModifyMessages", uri, path, false, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, messages: ${messages}")
+    
+    def apiPrefs = [
+        uri: "https://gmail.googleapis.com",
+        path: "/gmail/v1/users/me/messages/batchModify",
+        contentType: "application/json",
+        jsonBody: true
+    ]
+    
+    def messages = apiPost("batchModifyMessages", apiPrefs, bodyParams)
+    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
     logDebug("${logMsg}")
     return messages
 }
 
 def sendMessage(toEmail, subject, message) {
     def logMsg = ["sendMessage - toEmail: ${toEmail}, subject: ${subject}, message: ${message} - "]
-    String stringMessage = "To: " + toEmail
-    if (message.startsWith("Subject:") && message.indexOf(",") > -1) {
-        def messageSplit = message.split(",")
-        subject = messageSplit[0].replace("Subject:", "")
-        message = messageSplit[1].trim()
+    def keyWords = ["To", "Subject", "File"]
+    def foundKeywords = [:]
+    for (int k = 0; k < keyWords.size(); k++) {
+        def keyWord = keyWords[k]
+        def keyWordIndex = message.indexOf(keyWord + ":")
+        def commaIndex = message.indexOf(",", keyWordIndex)
+        if (keyWordIndex > -1 && commaIndex > -1 && keyWordIndex < commaIndex) {
+            def word = message.substring(keyWordIndex + keyWord.length() +1, commaIndex)
+            foundKeywords[keyWord] = word
+            message = message.replace(keyWord + ":" + word + ",", "").trim()
+        }
     }
-    stringMessage += "\nSubject: " + subject
-    if (message.indexOf("\\n") > -1) {
-        message = message.replace("\\n", "%n")
-    }
-    stringMessage += "\n\n" + String.format(message)
-    logMsg.push("stringMessage: ${stringMessage}")
-    def base64String = stringMessage.encodeAsBase64().toString()
-    def uri = "https://gmail.googleapis.com"
-    def path = "/gmail/v1/users/me/messages/send"
+    logMsg.push("foundKeywords: ${foundKeywords}")
+    toEmail = (foundKeywords.containsKey("To")) ? foundKeywords.To : toEmail
+    subject = (foundKeywords.containsKey("Subject"))? foundKeywords.Subject : subject
     def bodyParams = [
-        raw: base64String
+        to: "${toEmail}",
+        subject: "${subject}",
+        body: "${message}"
     ]
-    def messages = apiPost("sendMessage", uri, path, false, bodyParams)
+    
+    if (foundKeywords.containsKey("File") && foundKeywords.File.indexOf(".") > -1) {
+        def file = getFile(foundKeywords.File)
+        if (file.startsWith("File Error")) {
+            bodyParams.body += "<br><br>" + file
+        } else {
+            bodyParams.file = [
+                name: foundKeywords.File,
+                type: "application/" + foundKeywords.File.substring(foundKeywords.File.indexOf(".") +1),
+                bytes: getFile(foundKeywords.File)
+            ]
+        }
+    }
+    
+    def apiPrefs = [
+        uri: "https://www.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media",
+        contentType: "message/rfc822",
+        jsonBody: false
+    ]
+    
+    def messages = apiPost("sendMessage", apiPrefs, createMimeMessage(bodyParams))
+    
+    //Remove file contents from logging, Comment the following line to troubleshoot the file so it gets logged
+    if (bodyParams.containsKey("file")) bodyParams.file.bytes = ""
+    
     logMsg.push("bodyParams: ${bodyParams}, messages: ${messages}")
     logDebug("${logMsg}")
     return messages
+}
+
+def createMimeMessage(msg) {
+    def nl = '\n';
+    def boundary = 'hubitat_attachment';
+
+    def mimeBody = [
+        'Content-Type: multipart/mixed; boundary=' + boundary,
+        'MIME-Version: 1.0',
+        'To: ' + msg.to,
+        'Subject: ' + msg.subject + nl,
+        '--' + boundary,
+
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: base64',
+        msg.body.encodeAsBase64() + nl
+    ];
+    
+    if (msg.containsKey("file")) {
+        def attachment = [
+            '--' + boundary,
+            'Content-Type: ' + msg.file.type,
+            'MIME-Version: 1.0',
+            'Content-Transfer-Encoding: base64',
+            'Content-Disposition: attachment; filename="' + msg.file.name + '"' + nl,
+            msg.file.bytes,
+        ]
+        mimeBody.push(attachment.join(nl))
+        mimeBody.push('--' + boundary);
+    }
+    
+    return mimeBody.join(nl);
+}
+
+//Thanks to community members @thebearmay and @younes for example code to get and send files
+def getFile(fileName) {
+    if (security) cookie = securityLogin().cookie
+    
+    def uri = "http://${location.hub.localIP}:8080/local/${fileName}"
+    
+    def params = [
+        uri: uri,
+        contentType: "*/*",
+        textParser: false,
+        headers: [
+            "Cookie": cookie,
+            "Accept": "application/octet-stream"
+        ]
+    ]
+    
+    try {
+        httpGet(params) { resp ->
+            def file
+            if (resp!= null) {      
+                imageData = resp.data
+
+                def bSize = imageData.available()
+                byte[] imageArr = new byte[bSize]
+                imageData.read(imageArr, 0, bSize)
+                
+                ByteArrayOutputStream fileOutputStream = new ByteArrayOutputStream();
+                fileOutputStream.write(imageArr);
+                byte[] fileByteArray = fileOutputStream.toByteArray();
+                file = fileByteArray
+            } else {
+                file = "${fileName} could not be found within File Manager"
+            }
+            return file.encodeAsBase64()
+        }
+    } catch (exception) {
+        //log.error "File Read Error: ${exception.message}"
+        //return null;
+        return "File Error: ${fileName} could not be found within File Manager"
+    }
+    
+}
+
+//Thanks to community member @thebearmay for example code to get login security cookie
+HashMap securityLogin() {
+    def result = false
+    try {
+        httpPost(
+            [
+                uri: "http://127.0.0.1:8080",
+                path: "/login",
+                query: [
+                    loginRedirect: "/"
+                ],
+                body: [
+                    username: username,
+                    password: password,
+                    submit: "Login"
+                ],
+                textParser: true,
+                ignoreSSLIssues: true
+            ]
+        )
+        { resp ->
+            //			log.debug resp.data?.text
+            if (resp.data?.text?.contains("The login information you supplied was incorrect.")) {
+                result = false
+            } else {
+                cookie = resp?.headers?.'Set-Cookie'?.split(';')?.getAt(0)
+                result = true
+            }
+        }
+    } catch (e) {
+        log.error "Error logging in: ${e}"
+        result = false
+        cookie = null
+    }
+
+    return [result: result, cookie: cookie]
 }
 
 /* ============================= End Gmail ============================= */
