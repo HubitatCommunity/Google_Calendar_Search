@@ -1252,7 +1252,7 @@ def createMimeMessage(msg) {
         'Content-Type: multipart/mixed; boundary=' + boundary,
         'MIME-Version: 1.0',
         'To: ' + msg.to,
-        'Subject: ' + msg.subject + nl,
+        'Subject: =?UTF-8?B?' + msg.subject.encodeAsBase64() + '?=' + nl,
         '--' + boundary,
 
         'Content-Type: text/html; charset=UTF-8',
