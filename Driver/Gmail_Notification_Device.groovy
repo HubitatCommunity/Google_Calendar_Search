@@ -1,4 +1,4 @@
-def driverVersion() { return "4.0.0" }
+def driverVersion() { return "4.1.0" }
 /**
  *  Gmail Notification Device Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy
@@ -23,8 +23,9 @@ metadata {
     attribute "lastMessage", "string"
     
     preferences {
-		input name: "toEmail", type: "text", title: "Email address:", description: "Email address to send email to.", required: true
-        input name: "toSubject", type: "text", title: "Email subject:", description: "Email subject.", required: true
+		input name: "toEmail", type: "text", title: "Email address:", description: "Default email address to send email to", required: true
+        input name: "toSubject", type: "text", title: "Email subject:", description: "Default email subject", required: true
+        input name: "fromDisplayName", type: "text", title: "From Display Name:", description: "Default display name for email sender", required: false
         input name: "enableNofications", type: "bool", title: "Enable Notifications?", defaultValue: true, required: false
         input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
@@ -49,7 +50,7 @@ def parse(String description) {
 
 def deviceNotification(message) {
     if (settings.enableNofications == null || settings.enableNofications == true) {
-        parent.sendMessage(settings.toEmail, settings.toSubject, message)
+        parent.sendMessage(settings.toEmail, settings.fromDisplayName, settings.toSubject, message)
         sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toEmail}")
         logInfo(message + " sent to " + settings.toEmail)
         logDebug(message + " sent to " + settings.toEmail)
