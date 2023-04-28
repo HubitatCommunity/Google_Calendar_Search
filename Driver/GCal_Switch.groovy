@@ -1,4 +1,4 @@
-def driverVersion() { return "4.0.0" }
+def driverVersion() { return "4.1.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -53,8 +53,8 @@ metadata {
 	}
     
     preferences {
-        input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, options:["on","off"]
+        input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
     }
 }
