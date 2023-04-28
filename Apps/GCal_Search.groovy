@@ -1,4 +1,4 @@
-def appVersion() { return "4.0.0" }
+def appVersion() { return "4.1.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -202,8 +202,9 @@ def addNotificationDevice() {
             if (state.missingDriver == null) {
                 paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
                 input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
-                input "notifTo", "text", title: "Default Email address to send notification (if one is not passed in the notification)", required: false, submitOnChange: true
-                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
+                input "notifTo", "text", title: "Default email address to send notification (if one is not passed in the notification)", required: false, submitOnChange: true
+                input "notifSubject", "text", title: "Default email subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
+                input "notifDisplayName", "text", title: "Default display name for email sender (if one is not passed in the notification)", required: false, submitOnChange: true
                 if (settings.notifLabel && settings.notifTo) {
                     input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
                 }
@@ -222,6 +223,7 @@ def notificationDeviceInstructions() {
     text += "<ul style='list-style-position: inside;font-size:15px;'>"
     text += "<li><u>To</u>: recipient@example.com <b>Note</b>: Multiple email addresses can be separated by ';' (semicolon)</li>"
     text += "<li><u>Subject</u>: Dynamic Email Subject</li>"
+    text += "<li><u>From</u>: Dynamic From Display Name (Display Name &lt;from@gmail.com&gt;)</li>"
     text += "<li><u>File</u>: Exact name of file within your hub's File Manager</li>"
     text += "<li>If including any dynamic settings from above, the final comma value should be the body of the email. The body is base64 encoded so HTML tags can be included in the email body if desired.</li>"
     text += "<li>For example 'Subject:Urgent from Hubitat, To:newRecipient@example.com, File:CameraImage.jpg, &#60;b&#62;Dishwasher&#60;/b&#62; water sensor is wet!' will send the email to 'newRecipient@example.com', make the email subject 'Urgent from Hubitat', attach the 'CameraImage.jpg' file, and the body of the email '<b>Dishwasher</b> water sensor is wet!' with the word Dishwasher in bold.</li>"
@@ -270,6 +272,7 @@ def clearNotificationDeviceSettings() {
     app.updateSetting("notifLabel", [value:"", type:"text"])
     app.updateSetting("notifTo", [value:"", type:"text"])
     app.updateSetting("notifSubject", [value:"", type:"text"])
+    app.updateSetting("notifDisplayName", [value:"", type:"text"])
 }
 
 def appButtonHandler(btn) {
@@ -295,6 +298,7 @@ def createDevice(){
     	logDebug "createDevice Success"
 		childDevice.updateSetting("toEmail",[value:"${settings.notifTo}",type:"text"])
         childDevice.updateSetting("toSubject",[value:"${settings.notifSubject}",type:"text"])
+        childDevice.updateSetting("fromDisplayName",[value:"${settings.notifDisplayName}",type:"text"])
 		logDebug "toEmail Update Success"
         app.removeSetting("missingDriver")
     } catch (Exception e) {
@@ -778,8 +782,12 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             def reminderMinutes
             if (event.containsKey("reminders") && event.reminders.containsKey("overrides")) {
                 def reminders = event.reminders.overrides
-                reminderMinutes = reminders.find{it.method == defaultReminder.method}
-                reminderMinutes = reminderMinutes.minutes
+                if (reminders.size() == 1) {
+                    reminderMinutes = reminders[0].minutes
+                } else {
+                    reminderMinutes = reminders.find{it.method == defaultReminder.method}
+                    reminderMinutes = (reminderMinutes) ? reminderMinutes.minutes : defaultReminder.minutes
+                }
             } else {
                 reminderMinutes = defaultReminder.minutes
             }
@@ -1188,9 +1196,11 @@ def batchModifyMessages(messageIDs, addLabels, removeLabels) {
     return messages
 }
 
-def sendMessage(toEmail, subject, message) {
-    def logMsg = ["sendMessage - toEmail: ${toEmail}, subject: ${subject}, message: ${message} - "]
-    def keyWords = ["To", "Subject", "File"]
+def sendMessage(toEmail, fromDisplayName, subject, message) {
+    def fromEmail = getUserProfile()
+    
+    def logMsg = ["sendMessage - toEmail: ${toEmail}, fromDisplayName: ${fromDisplayName}, fromEmail: ${fromEmail}, subject: ${subject}, message: ${message} - "]
+    def keyWords = ["To", "From", "Subject", "File"]
     def foundKeywords = [:]
     for (int k = 0; k < keyWords.size(); k++) {
         def keyWord = keyWords[k]
@@ -1203,11 +1213,18 @@ def sendMessage(toEmail, subject, message) {
         }
     }
     logMsg.push("foundKeywords: ${foundKeywords}")
-    toEmail = (foundKeywords.containsKey("To")) ? foundKeywords.To : toEmail
+    toEmail = (foundKeywords.containsKey("To")) ? foundKeywords.To : toEmail    
     subject = (foundKeywords.containsKey("Subject"))? foundKeywords.Subject : subject
+    if (foundKeywords.containsKey("From")) {
+        fromEmail = encodeString(foundKeywords.From) + "<" + fromEmail + ">"
+    } else if (fromDisplayName != null && fromDisplayName != "") {
+        fromEmail = encodeString(fromDisplayName) + "<" + fromEmail + ">"
+    }
+    
     def bodyParams = [
+        from: "${fromEmail}",
         to: "${toEmail}",
-        subject: "${subject}",
+        subject: "${encodeString(subject)}",
         body: "${message}"
     ]
     
@@ -1240,6 +1257,32 @@ def sendMessage(toEmail, subject, message) {
     return messages
 }
 
+def encodeString(msg) {
+  return '=?utf-8?B?' + msg.encodeAsBase64() + '?=';
+}
+
+def getUserProfile() {
+    def logMsg = []
+    def fromEmail = atomicState.fromEmail
+    logMsg.push("getUserProfile - fromEmail: ${fromEmail}")
+    
+    if (fromEmail == null) {
+        def uri = "https://gmail.googleapis.com"
+        def path = "/gmail/v1/users/me/profile"
+        def queryParams = [
+            format: 'json'
+        ]
+        def userProfile = apiGet("getUserProfile", uri, path, queryParams)
+        logMsg.push("path: ${path}, queryParams: ${queryParams}, userProfile: ${userProfile}")
+
+        fromEmail = userProfile.emailAddress
+        atomicState.fromEmail = fromEmail
+    }
+    
+    logDebug("${logMsg}")
+    return fromEmail
+}
+
 def createMimeMessage(msg) {
     def nl = '\n';
     def boundary = 'hubitat_attachment';
@@ -1248,6 +1291,7 @@ def createMimeMessage(msg) {
         'Content-Type: multipart/mixed; boundary=' + boundary,
         'MIME-Version: 1.0',
         'To: ' + msg.to,
+        'From: ' + msg.from,
         'Subject: ' + msg.subject + nl,
         '--' + boundary,
 
@@ -1308,8 +1352,6 @@ def getFile(fileName) {
             return file.encodeAsBase64()
         }
     } catch (exception) {
-        //log.error "File Read Error: ${exception.message}"
-        //return null;
         return "File Error: ${fileName} could not be found within File Manager"
     }
     
