@@ -1,4 +1,4 @@
-def appVersion() { return "4.0.1" }
+def appVersion() { return "4.1.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -68,11 +68,11 @@ def mainPage() {
                 if (state.scopesAuthorized.indexOf("mail.google.com") > -1) {
                     clearNotificationDeviceSettings()
                     paragraph notificationDeviceInstructions()
-                    input name: "security", type: "bool", title: "Do you plan to send local files from File Manager <b>and</b> have hub security enabled? Credentials are required to get the local file.", defaultValue: false, submitOnChange: true
+                    /*input name: "security", type: "bool", title: "Do you plan to send local files from File Manager <b>and</b> have hub security enabled? Credentials are required to get the local file.", defaultValue: false, submitOnChange: true
                     if (settings.security == true) { 
                         input name: "username", type: "string", title: "Hub Security Username", required: true
                         input name: "password", type: "password", title: "Hub Security Password", required: true
-                    }
+                    }*/
                     paragraph getNotificationDevices()
                     paragraph "${getFormat("line")}"
 
@@ -202,8 +202,9 @@ def addNotificationDevice() {
             if (state.missingDriver == null) {
                 paragraph "${getFormat("text", "<b>Fill in the following details and click anywhere on the screen to expose the 'Create Notification Device' button. Click this to add a new Gmail notification device and repeat steps to add additional Gmail notification devices.  Click Next to return to the main menu.</b>")}"
                 input "notifLabel", "text", title: "Notification device name", required: false, submitOnChange: true
-                input "notifTo", "text", title: "Default Email address to send notification (if one is not passed in the notification)", required: false, submitOnChange: true
-                input "notifSubject", "text", title: "Default Email Subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
+                input "notifTo", "text", title: "Default email address to send notification (if one is not passed in the notification)", required: false, submitOnChange: true
+                input "notifSubject", "text", title: "Default email subject (if one is not passed in the notification)", defaultValue: "${location.name} Notification", required: false, submitOnChange: true
+                input "notifDisplayName", "text", title: "Default display name for email sender (if one is not passed in the notification)", required: false, submitOnChange: true
                 if (settings.notifLabel && settings.notifTo) {
                     input name: "createChild", type: "button", title: "Create Notification Device", backgroundColor: "Green", textColor: "white", width: 4, submitOnChange: true
                 }
@@ -222,6 +223,7 @@ def notificationDeviceInstructions() {
     text += "<ul style='list-style-position: inside;font-size:15px;'>"
     text += "<li><u>To</u>: recipient@example.com <b>Note</b>: Multiple email addresses can be separated by ';' (semicolon)</li>"
     text += "<li><u>Subject</u>: Dynamic Email Subject</li>"
+    text += "<li><u>From</u>: Dynamic From Display Name (Display Name &lt;from@gmail.com&gt;)</li>"
     text += "<li><u>File</u>: Exact name of file within your hub's File Manager</li>"
     text += "<li>If including any dynamic settings from above, the final comma value should be the body of the email. The body is base64 encoded so HTML tags can be included in the email body if desired.</li>"
     text += "<li>For example 'Subject:Urgent from Hubitat, To:newRecipient@example.com, File:CameraImage.jpg, &#60;b&#62;Dishwasher&#60;/b&#62; water sensor is wet!' will send the email to 'newRecipient@example.com', make the email subject 'Urgent from Hubitat', attach the 'CameraImage.jpg' file, and the body of the email '<b>Dishwasher</b> water sensor is wet!' with the word Dishwasher in bold.</li>"
@@ -270,6 +272,7 @@ def clearNotificationDeviceSettings() {
     app.updateSetting("notifLabel", [value:"", type:"text"])
     app.updateSetting("notifTo", [value:"", type:"text"])
     app.updateSetting("notifSubject", [value:"", type:"text"])
+    app.updateSetting("notifDisplayName", [value:"", type:"text"])
 }
 
 def appButtonHandler(btn) {
@@ -295,6 +298,7 @@ def createDevice(){
     	logDebug "createDevice Success"
 		childDevice.updateSetting("toEmail",[value:"${settings.notifTo}",type:"text"])
         childDevice.updateSetting("toSubject",[value:"${settings.notifSubject}",type:"text"])
+        childDevice.updateSetting("fromDisplayName",[value:"${settings.notifDisplayName}",type:"text"])
 		logDebug "toEmail Update Success"
         app.removeSetting("missingDriver")
     } catch (Exception e) {
@@ -1192,9 +1196,11 @@ def batchModifyMessages(messageIDs, addLabels, removeLabels) {
     return messages
 }
 
-def sendMessage(toEmail, subject, message) {
-    def logMsg = ["sendMessage - toEmail: ${toEmail}, subject: ${subject}, message: ${message} - "]
-    def keyWords = ["To", "Subject", "File"]
+def sendMessage(toEmail, fromDisplayName, subject, message) {
+    def fromEmail = getUserProfile()
+    
+    def logMsg = ["sendMessage - toEmail: ${toEmail}, fromDisplayName: ${fromDisplayName}, fromEmail: ${fromEmail}, subject: ${subject}, message: ${message} - "]
+    def keyWords = ["To", "From", "Subject", "File"]
     def foundKeywords = [:]
     for (int k = 0; k < keyWords.size(); k++) {
         def keyWord = keyWords[k]
@@ -1207,11 +1213,18 @@ def sendMessage(toEmail, subject, message) {
         }
     }
     logMsg.push("foundKeywords: ${foundKeywords}")
-    toEmail = (foundKeywords.containsKey("To")) ? foundKeywords.To : toEmail
+    toEmail = (foundKeywords.containsKey("To")) ? foundKeywords.To : toEmail    
     subject = (foundKeywords.containsKey("Subject"))? foundKeywords.Subject : subject
+    if (foundKeywords.containsKey("From")) {
+        fromEmail = encodeString(foundKeywords.From) + "<" + fromEmail + ">"
+    } else if (fromDisplayName != null && fromDisplayName != "") {
+        fromEmail = encodeString(fromDisplayName) + "<" + fromEmail + ">"
+    }
+    
     def bodyParams = [
+        from: "${fromEmail}",
         to: "${toEmail}",
-        subject: "${subject}",
+        subject: "${encodeString(subject)}",
         body: "${message}"
     ]
     
@@ -1244,6 +1257,32 @@ def sendMessage(toEmail, subject, message) {
     return messages
 }
 
+def encodeString(msg) {
+  return '=?utf-8?B?' + msg.encodeAsBase64() + '?=';
+}
+
+def getUserProfile() {
+    def logMsg = []
+    def fromEmail = atomicState.fromEmail
+    logMsg.push("getUserProfile - fromEmail: ${fromEmail}")
+    
+    if (fromEmail == null) {
+        def uri = "https://gmail.googleapis.com"
+        def path = "/gmail/v1/users/me/profile"
+        def queryParams = [
+            format: 'json'
+        ]
+        def userProfile = apiGet("getUserProfile", uri, path, queryParams)
+        logMsg.push("path: ${path}, queryParams: ${queryParams}, userProfile: ${userProfile}")
+
+        fromEmail = userProfile.emailAddress
+        atomicState.fromEmail = fromEmail
+    }
+    
+    logDebug("${logMsg}")
+    return fromEmail
+}
+
 def createMimeMessage(msg) {
     def nl = '\n';
     def boundary = 'hubitat_attachment';
@@ -1252,7 +1291,8 @@ def createMimeMessage(msg) {
         'Content-Type: multipart/mixed; boundary=' + boundary,
         'MIME-Version: 1.0',
         'To: ' + msg.to,
-        'Subject: =?UTF-8?B?' + msg.subject.encodeAsBase64() + '?=' + nl,
+        'From: ' + msg.from,
+        'Subject: ' + msg.subject + nl,
         '--' + boundary,
 
         'Content-Type: text/html; charset=UTF-8',
@@ -1278,45 +1318,23 @@ def createMimeMessage(msg) {
 
 //Thanks to community members @thebearmay and @younes for example code to get and send files
 def getFile(fileName) {
-    if (security) cookie = securityLogin().cookie
-    
-    def uri = "http://${location.hub.localIP}:8080/local/${fileName}"
-    
-    def params = [
-        uri: uri,
-        contentType: "*/*",
-        textParser: false,
-        headers: [
-            "Cookie": cookie,
-            "Accept": "application/octet-stream"
-        ]
-    ]
-    
+    def logMsg = ["getFile - fileName: ${fileName}"]
+    def file
     try {
-        httpGet(params) { resp ->
-            def file
-            if (resp!= null) {      
-                imageData = resp.data
-
-                def bSize = imageData.available()
-                byte[] imageArr = new byte[bSize]
-                imageData.read(imageArr, 0, bSize)
-                
-                ByteArrayOutputStream fileOutputStream = new ByteArrayOutputStream();
-                fileOutputStream.write(imageArr);
-                byte[] fileByteArray = fileOutputStream.toByteArray();
-                file = fileByteArray
-            } else {
-                file = "${fileName} could not be found within File Manager"
-            }
-            return file.encodeAsBase64()
-        }
+        byte[] fileData = downloadHubFile(fileName)
+        ByteArrayOutputStream fileOutputStream = new ByteArrayOutputStream();
+        fileOutputStream.write(fileData);
+        byte[] fileByteArray = fileOutputStream.toByteArray();
+        file = fileByteArray.encodeAsBase64()
+        logMsg.push("file found")
     } catch (exception) {
-        //log.error "File Read Error: ${exception.message}"
-        //return null;
-        return "File Error: ${fileName} could not be found within File Manager"
+        logMsg.push("File Error Exception: ${fileName} could not be found within File Manager, exception: ${exception}")
+        logDebug("${logMsg}")
+        file = "File Error: ${fileName} could not be found within File Manager"
     }
     
+    logDebug("${logMsg}")
+    return file
 }
 
 //Thanks to community member @thebearmay for example code to get login security cookie
