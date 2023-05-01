@@ -1,4 +1,4 @@
-def appVersion() { return "4.1.0" }
+def appVersion() { return "4.2.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -68,11 +68,11 @@ def mainPage() {
                 if (state.scopesAuthorized.indexOf("mail.google.com") > -1) {
                     clearNotificationDeviceSettings()
                     paragraph notificationDeviceInstructions()
-                    input name: "security", type: "bool", title: "Do you plan to send local files from File Manager <b>and</b> have hub security enabled? Credentials are required to get the local file.", defaultValue: false, submitOnChange: true
+                    /*input name: "security", type: "bool", title: "Do you plan to send local files from File Manager <b>and</b> have hub security enabled? Credentials are required to get the local file.", defaultValue: false, submitOnChange: true
                     if (settings.security == true) { 
                         input name: "username", type: "string", title: "Hub Security Username", required: true
                         input name: "password", type: "password", title: "Hub Security Password", required: true
-                    }
+                    }*/
                     paragraph getNotificationDevices()
                     paragraph "${getFormat("line")}"
 
@@ -1316,45 +1316,22 @@ def createMimeMessage(msg) {
     return mimeBody.join(nl);
 }
 
-//Thanks to community members @thebearmay and @younes for example code to get and send files
+//Thanks to community members @thebearmay and @younes and @bbacon19 for example code to get and send files
 def getFile(fileName) {
-    if (security) cookie = securityLogin().cookie
-    
-    def uri = "http://${location.hub.localIP}:8080/local/${fileName}"
-    
-    def params = [
-        uri: uri,
-        contentType: "*/*",
-        textParser: false,
-        headers: [
-            "Cookie": cookie,
-            "Accept": "application/octet-stream"
-        ]
-    ]
-    
+    def logMsg = ["getFile - fileName: ${fileName}"]
+    def file
     try {
-        httpGet(params) { resp ->
-            def file
-            if (resp!= null) {      
-                imageData = resp.data
-
-                def bSize = imageData.available()
-                byte[] imageArr = new byte[bSize]
-                imageData.read(imageArr, 0, bSize)
-                
-                ByteArrayOutputStream fileOutputStream = new ByteArrayOutputStream();
-                fileOutputStream.write(imageArr);
-                byte[] fileByteArray = fileOutputStream.toByteArray();
-                file = fileByteArray
-            } else {
-                file = "${fileName} could not be found within File Manager"
-            }
-            return file.encodeAsBase64()
-        }
+        byte[] fileData = downloadHubFile(fileName)
+        file = fileData.encodeAsBase64()
+        logMsg.push("file found")
     } catch (exception) {
-        return "File Error: ${fileName} could not be found within File Manager"
+        logMsg.push("File Error Exception: ${fileName} could not be found within File Manager, exception: ${exception}")
+        logDebug("${logMsg}")
+        file = "File Error: ${fileName} could not be found within File Manager"
     }
     
+    logDebug("${logMsg}")
+    return file
 }
 
 //Thanks to community member @thebearmay for example code to get login security cookie
