@@ -1316,16 +1316,13 @@ def createMimeMessage(msg) {
     return mimeBody.join(nl);
 }
 
-//Thanks to community members @thebearmay and @younes for example code to get and send files
+//Thanks to community members @thebearmay and @younes and @bbacon19 for example code to get and send files
 def getFile(fileName) {
     def logMsg = ["getFile - fileName: ${fileName}"]
     def file
     try {
         byte[] fileData = downloadHubFile(fileName)
-        ByteArrayOutputStream fileOutputStream = new ByteArrayOutputStream();
-        fileOutputStream.write(fileData);
-        byte[] fileByteArray = fileOutputStream.toByteArray();
-        file = fileByteArray.encodeAsBase64()
+        file = fileData.encodeAsBase64()
         logMsg.push("file found")
     } catch (exception) {
         logMsg.push("File Error Exception: ${fileName} could not be found within File Manager, exception: ${exception}")
