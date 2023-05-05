@@ -1,4 +1,4 @@
-def appVersion() { return "4.3.0" }
+def appVersion() { return "4.2.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -1157,10 +1157,8 @@ def runAdditionalActions(items) {
                 
                 if (settings.parseField != true) {
                     logMsg.push("parseField: ${settings.parseField}, not parsing field")
-                    log.trace "scheduling parse field actions ${scheduleItem}"
                 } else {
                     logMsg.push("scheduling parse field actions ${scheduleItem}")
-                    log.trace "scheduling parse field actions ${scheduleItem}"
                     scheduleItems.triggerVariableUpdate.push(scheduleItem)
                     def triggerVariableUpdate = [:]
                     triggerVariableUpdate.status = "scheduled"
@@ -1365,34 +1363,6 @@ def triggerAdditionalAction(ArrayList data=[]) {
     logDebug("${logMsg}")
 }
 
-def triggerVariableUpdate(itemID) {
-    log.trace "itemID: ${itemID}"
-    
-    /*
-def parseTextList = parseMap.keySet()
-        def matchFieldSplit = matchFieldValue.split("\n")
-        for (int m = 0; m < matchFieldSplit.size(); m++) {
-            def matchFieldLine = matchFieldSplit[m]
-            for (int p = 0; p < parseTextList.size(); p++) {
-                def parseText = parseTextList[p]
-                if (parseText != "" && matchFieldLine.startsWith(parseText)) {
-                    def varName = parseMap[parseText].variable
-                    def varLocation = parseMap[parseText].location
-                    def varValue
-                    if (varLocation == "NextLine") {
-                        varValue = matchFieldSplit[m+1]
-                    } else {
-                        varValue = matchFieldLine.replace(parseText, "").trim()
-                    }
-                    log.trace "matchFieldLine: ${matchFieldLine}, parseText: ${parseText}, ${varName}: ${varValue}"
-                    answer[varName] = varValue
-                    setGlobalVar(varName, varValue)
-                }
-            }
-        }
-*/
-}
-
 def gatherFieldMappings(item) {
     def logMsg = ["gatherFieldMappings - item: ${item}"]
     def answer = [:]
@@ -1424,7 +1394,6 @@ def gatherFieldMappings(item) {
                 location: parseMapping.location
             ]
         }
-        log.trace "parseMap: ${parseMap}"
         
         def parseTextList = parseMap.keySet()
         def matchFieldSplit = matchFieldValue.split("\n")
@@ -1441,7 +1410,6 @@ def gatherFieldMappings(item) {
                     } else {
                         varValue = matchFieldLine.replace(parseText, "").trim()
                     }
-                    log.trace "matchFieldLine: ${matchFieldLine}, parseText: ${parseText}, ${varName}: ${varValue}"
                     answer[varName] = varValue
                 }
             }
@@ -1450,7 +1418,6 @@ def gatherFieldMappings(item) {
     
     logMsg.push("answer: ${answer}")
     logDebug("${logMsg}")
-    log.trace "${logMsg}"
     return answer
 }
 
@@ -1611,6 +1578,38 @@ def gatherControlSwitches(item) {
     logMsg.push("answer: ${answer}")
     logDebug("${logMsg}")
     return answer
+}
+
+def triggerVariableUpdate(itemID) {
+    def items = atomicState.item
+    def item
+    if (settings.searchType == "Calendar Event") {
+        item = items.find{it.eventID == itemID}
+    } else if (settings.searchType == "Gmail") {
+        item = items.find{it.messageID == itemID}
+    } else {
+        item = items.find{it.taskID == itemID}
+    }
+    
+    def logMsg = ["triggerSwitchControl - itemID: ${itemID}, item: ${item}"]
+    def logInfoMsg = []
+    
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerVariableUpdate") && !item.additionalActions.triggerVariableUpdate.variableUpdates.isEmpty()) {
+        def variableList = []
+        def variableUpdates = item.additionalActions.triggerVariableUpdate.variableUpdates
+        def variableNameList = variableUpdates.keySet()
+        for (int i = 0; i < variableNameList.size(); i++) {
+            def variableName = variableNameList[i]
+            def variableValue = variableUpdates[variableName]
+            setGlobalVar(variableName, variableValue)
+            logMsg.push("Hub Variable ${variableName} set to ${variableValue}")
+            logInfoMsg.push("${variableName} set to ${variableValue}")
+        }
+    }
+    
+    logMsg.push("${settings.searchType} completed: ${itemCompleted}")
+    logDebug("${logMsg}")
+    logInfo("Hub Variable Updates - " + logInfoMsg.join(", "))
 }
 
 def triggerSwitchControl(itemID) {
@@ -2093,7 +2092,6 @@ private dVersion() {
 }
 
 def appButtonHandler(btn) {
-    log.trace "appButtonHandler: ${btn}"
     if (btn.startsWith("mapping")) {
         def rowData = btn.replace("mapping", "")
         def slurper = new JsonSlurper()
@@ -2113,7 +2111,6 @@ def appButtonHandler(btn) {
         rowNumber = rowNumber.toInteger()
         def parseMappings = atomicState.parseMappings
         parseMappings.remove(rowNumber)
-        log.trace "parseMappings: ${parseMappings}"
         atomicState.parseMappings = parseMappings
         return
     }
@@ -2131,7 +2128,6 @@ def appButtonHandler(btn) {
         case "addRow":
             def parseMappings = atomicState.parseMappings
             parseMappings.push([text:"",location:"SameLine",variable:"None"])
-            log.trace "parseMappings: ${parseMappings}"
             atomicState.parseMappings = parseMappings
             return
     }
