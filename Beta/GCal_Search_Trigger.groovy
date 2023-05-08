@@ -508,7 +508,7 @@ def getParseFieldDescription(searchType) {
             def mapping = parseMappings[m]
             String deleteRow = buttonLink("deleteRow" + m, "<iconify-icon icon='ion:trash-sharp'></iconify-icon>", "#FF0000", "20px")
             str += "<tr style='color:black'>" + 
-                "<td><input id='textPrefix$m' name='textPrefix$m' type='text' value='${mapping.textPrefix}' onChange='captureValue($m)'></td>" +
+                "<td><input id='textPrefix$m' name='textPrefix$m' type='text' aria-required='true' value='${mapping.textPrefix}' onChange='captureValue($m)'></td>" +
                 "<td><select id='location$m' name='location$m' onChange='captureValue($m)'>" + locationOptions + "</select></td>" +
                 "<td><select id='variable$m' name='variable$m' onChange='captureValue($m)'>" + variableOptions + "</select></td>" +
                 "<td><input id='endValue$m' name='endValue$m' type='text' value='${mapping.endValue}' onChange='captureValue($m)'></td>" +
@@ -1087,11 +1087,11 @@ def runAdditionalActions(items) {
                         for (int n = 0; n < parseMappings.size(); n++) {
                             def parseMapping = parseMappings[n]
                             def variableName = parseMapping.variable
-                            def currentValue = getGlobalVar(variableName).value
-                            def endValue = parseMapping.endValue
+                            def currentValue = (variableName == "None") ? "None" : getGlobalVar(variableName).value
+                            def newValue = parseMapping.endValue
                             
-                            if (currentValue != endValue) {
-                                updateHubVariable("runAdditionalActions", variableName, endValue)
+                            if (currentValue != newValue) {
+                                updateHubVariable("runAdditionalActions", variableName, newValue)
                             }
                         }
                     }
@@ -1667,7 +1667,12 @@ def triggerEndVariableUpdate(itemID) {
 
 def updateHubVariable(fromFunction, variableName, variableValue) {
     def logMsg = "${fromFunction}, Hub Variable ${variableName} set to ${variableValue}"
-    setGlobalVar(variableName, variableValue)
+    
+    if (variableName == "None") {
+        logMsg = "${fromFunction}, Hub Variable not set in settings, skipping update"
+    } else {
+        setGlobalVar(variableName, variableValue)
+    }
     
     logDebug("${logMsg}")
     logInfo(logMsg)
