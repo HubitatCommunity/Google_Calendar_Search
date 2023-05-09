@@ -1,4 +1,4 @@
-def appVersion() { return "4.2.0" }
+def appVersion() { return "4.3.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -21,6 +21,7 @@ def appVersion() { return "4.2.0" }
  *
  */
 import hubitat.helper.RMUtils
+import groovy.json.JsonSlurper
 
 definition(
     name: "GCal Search Trigger",
@@ -284,7 +285,7 @@ def mainPage() {
                 input "controlSwitches", "bool", title: "${controlSwitchesDescription.title}", defaultValue: false, submitOnChange: true
                 if (settings.controlSwitches == true) {
                     paragraph "${parent.getFormat("text", controlSwitchesDescription.instructions)}"
-                    input name: "itemField", type: "enum", title: "${settings.searchType} field to use for swith instructions", required: true, defaultValue: "title", options:controlSwitchesDescription.options, width: 4
+                    input name: "itemField", type: "enum", title: "${settings.searchType} field to use for switch instructions", required: true, defaultValue: "title", options:controlSwitchesDescription.options, width: 4
                     input name: "offTranslation", type: "text", title: "Translation for Off", required: true, defaultValue: "off", width: 4
                     input name: "onTranslation", type: "text", title: "Translation for On", required: true, defaultValue: "on", width: 4
                     input name: "ignoreWords", type: "text", title: "Verbs within text to ignore (separate multiple words by comma)", required: false, defaultValue: "turn", width: 6
@@ -293,7 +294,17 @@ def mainPage() {
                 }
                 paragraph "${parent.getFormat("line")}"
                 
-                if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true) {
+                def parseFieldDescription = getParseFieldDescription(settings.searchType)
+                paragraph "${parent.getFormat("text", parseFieldDescription.description)}"
+                input "parseField", "bool", title: "${parseFieldDescription.title}", defaultValue: false, submitOnChange: true
+                if (settings.parseField == true) {
+                    //paragraph "${parent.getFormat("text", parseFieldDescription.instructions)}"
+                    input name: "fieldToParse", type: "enum", title: "${settings.searchType} field to search for text matches", required: true, defaultValue: "title", options:parseFieldDescription.options
+                    paragraph parseFieldDescription.mappingsTable
+                }
+                paragraph "${parent.getFormat("line")}"
+                
+                if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true || settings.parseField == true) {
                     paragraph "${parent.getFormat("text", "Toggle 'Enable descriptionText logging' below if you want this app to create an event log entry when the additional actions are executed with details on that action.")}"
                     input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
                     paragraph "${parent.getFormat("line")}"
@@ -319,6 +330,10 @@ def mainPage() {
 	}       
 }
 
+String buttonLink(String btnName, String linkText, color = "#1A77C9", font = "15px") {
+    "<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:$font'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+}
+
 def getNotificationMsgDescription(searchType) {
     def answer = "Use %now% to include current date/time of when notification is sent, "
     if (searchType == "Calendar Event") {
@@ -339,6 +354,9 @@ def getNotificationMsgDescription(searchType) {
     }
     if (settings.controlSwitches == true) {
         answer += " With 'Control switches from ${searchType.toLowerCase()} details' enabled switches that will be turned on/off can be added by using %onSwitches% and %offSwitches%."
+    }
+    if (settings.parseField == true) {
+        answer += " With 'Parse data from ${searchType.toLowerCase()} details and update hub variables' enabled variables that will be updated can be added by using %variableUpdates%."
     }
     
     return answer
@@ -391,6 +409,11 @@ def getNextItemDescription() {
                 }
             }
             
+            if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartVariableUpdate") && !item.additionalActions.triggerStartVariableUpdate.isEmpty()) {
+                itemDetails += "\n<b>Variables to update</b>: "
+                itemDetails += gatherVariableUpdates(item)
+            }
+            
             if (searchType == "Gmail") {
                 answer = "<b>Last Message</b>:\n"
                 answer += "<b>Title</b>: ${itemTitle}"
@@ -426,7 +449,7 @@ def getControlSwitchesDescription(searchType) {
     
     answer.instructions = "Options Explanation:\n"
     answer.instructions += "<ul style='list-style-position: inside;font-size:15px;'>"
-    answer.instructions += "<li><u>Reminder field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
+    answer.instructions += "<li><u>${searchType.toLowerCase()} field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
     answer.instructions += "<li><u>Translation for Off</u>: Defaults to the word 'off' but international users may enter their translation for 'off'</li>"
     answer.instructions += "<li><u>Translation for On</u>: Defaults to the word 'on' but international users may enter their translation for 'on'</li>"
     answer.instructions += "<li><u>Verbs within text to ignore</u>: Optional: Enter word(s) that might be included within the instructions that you want to ignore during the matching process. In English you might say 'turn on the overhead lights' but the word 'turn' isn't really necessary and should be ignored.</li>"
@@ -434,6 +457,82 @@ def getControlSwitchesDescription(searchType) {
     answer.instructions += "<li><u>Control These Switches</u>: Choose all switches that you would ever want to control from a ${searchType.toLowerCase()}.  Text within the ${searchType.toLowerCase()} will be matched to the switch name/label set witin the device. Note: apostrophe's will be removed prior to matching since they can be problematic.</li>"
     answer.instructions += "</ul>"
     
+    return answer
+}
+
+def getParseFieldDescription(searchType) {
+    def answer = [
+        title: "Parse data from ${searchType.toLowerCase()} details and update hub variables",
+        options: ["title"]
+    ]
+    answer.description = "Text found within the ${searchType.toLowerCase()} can be mapped to Hub Variables for additional rule processing. For example with an AirBnB rental calendar event, the last 4 digits of the renter's phone number can be mapped to a hub variable that will fire a rule to add these digits as a code to the lock on the property."
+    answer.description += "<ul style='list-style-position: inside;font-size:15px;'>"
+    answer.description += "<li>Each line of the chosen field will be processed looking for specific text entered in the Text Prefix input</li>" 
+    answer.description += "<li>If a match is found, the remaining text on that line (or next line) will become the value of the selected Hub Variable</li>"
+    if (searchType == "Calendar Event") {
+        answer.description += "<li>At the end of the ${searchType.toLowerCase()}, the variables can be set to a specified value</li>"
+    }
+    answer.description += "</ul>"
+
+    if (searchType == "Calendar Event") {
+        answer.options.push("location")
+        answer.options.push("description")
+    } else if (searchType == "Gmail") {
+        answer.options.push("body")
+    }
+
+    /*answer.instructions = "Options Explanation:\n"
+    answer.instructions += "<ul style='list-style-position: inside;font-size:15px;'>"
+    answer.instructions += "<li><u>Reminder field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
+    answer.instructions += "</ul>"
+    */
+    
+    if (settings.parseField == true) {
+        def parseMappings = (atomicState.parseMappings) ? atomicState.parseMappings : [[textPrefix:"",location:"SameLine",variable:"None",endValue:""]]
+        HashMap globalVars = getAllGlobalVars()
+        def globalVarNames = globalVars.keySet()
+        String locationOptions = "<option value='SameLine'>Same Line</option><option value='NextLine'>Next Line</option>"
+        String variableOptions = "<option value='None'>Click to set</option>"
+        for (int i = 0; i < globalVarNames.size(); i++) {
+            def optionVal = globalVarNames[i]
+            variableOptions += "<option value='" + optionVal + "'>" + optionVal + "</option>"
+        }
+        
+        String str = "<script src='https://code.iconify.design/iconify-icon/1.0.0/iconify-icon.min.js'></script>"
+        str += "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" +
+            "</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black' id='parseMappings'>" +
+            "<thead><tr style='border-bottom:2px solid black'>" + 
+            "<th>Text Prefix</th>" +
+            "<th>Value Location</th>" +
+            "<th>Variable</th>" +
+            "${(searchType == "Calendar Event") ? "<th>Value to Set at Scheduled End</th>" : ""}" +
+            "<th><iconify-icon icon='ion:trash-sharp'></iconify-icon></th></tr></thead>"
+        for (int m = 0; m < parseMappings.size(); m++) {
+            def mapping = parseMappings[m]
+            String deleteRow = buttonLink("deleteRow" + m, "<iconify-icon icon='ion:trash-sharp'></iconify-icon>", "#FF0000", "20px")
+            str += "<tr style='color:black'>" + 
+                "<td><input id='textPrefix$m' name='textPrefix$m' type='text' aria-required='true' value='${mapping.textPrefix}' onChange='captureValue($m)'></td>" +
+                "<td><select id='location$m' name='location$m' onChange='captureValue($m)'>" + locationOptions + "</select></td>" +
+                "<td><select id='variable$m' name='variable$m' onChange='captureValue($m)'>" + variableOptions + "</select></td>" +
+                "${(searchType == "Calendar Event") ? "<td><input id='endValue$m' name='endValue$m' type='text' value='${(mapping.containsKey("endValue")) ? mapping.endValue : ""}' onChange='captureValue($m)'></td>" : ""}" +
+                "<script>document.querySelector('#location$m').value= '${mapping.location}';document.querySelector('#variable$m').value= '${mapping.variable}';</script>" +
+                "<td>$deleteRow</td></tr>"
+        }
+
+        str += "</table>"
+        String newMapping = buttonLink("addRow", "+", "#007009", "25px")
+        str += "<table id='parseMappings2' class='mdl-data-table tstat-col' style=';border:none'><thead><tr>" +
+            "<th style='border-bottom:2px solid black;border-right:2px solid black;border-left:2px solid black;width:50px' title='New Mapping'>$newMapping</th>" +
+            "<th style='border:none;color:green;font-size:25px'><b><i class='he-arrow-left2' style='vertical-align:middle'></i> New Mapping</b></th>" +
+            "</tr></thead></table></div>" +
+            "<script>function captureValue(val) {" +
+            "var answer = {};answer.row = val; answer.textPrefix = document.getElementById('textPrefix' + val).value;answer.location = document.getElementById('location' + val).value;answer.variable = document.getElementById('variable' + val).value;if (document.getElementById('endValue' + val)) answer.endValue = document.getElementById('endValue' + val).value;answer = JSON.stringify(answer);" +
+            "var postBody = {'id': " + app.id + ",'name': 'mapping' + answer + ''};" +
+            "\$.post('/installedapp/btn', postBody,function (msg) {if (msg.status == 'success') {/*window.location.reload()*/}}, 'json');}</script>"
+        
+        answer.mappingsTable = str
+    }
+
     return answer
 }
 
@@ -489,6 +588,7 @@ def initialize() {
             childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
         }
     }
+    
     if (!state.isPaused) {
         if (settings.whenToRun == "Once Per Day") {
             schedule(timeToRun, poll)
@@ -509,6 +609,16 @@ def initialize() {
             logDebug("initialize - creating schedule with cron string: ${cronString}")
         }
     }
+    
+    if (settings.parseField == true) {
+        removeAllInUseGlobalVar()
+        def parseMappings = atomicState.parseMappings
+        for (int i = 0; i < parseMappings.size(); i++) {
+            def variableName = parseMappings[i].variable
+            addInUseGlobalVar(variableName)
+        }
+    }
+    
     //poll()
     runIn(5, poll)
 }
@@ -954,7 +1064,7 @@ def getNextMessages() {
 
 def runAdditionalActions(items) {
     def logMsg = ["runAdditionalActions - items: ${items}"]
-    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true) {
+    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true && settings.parseField != true) {
         logMsg.push("No additional actions to run")
     } else {
         def previousItems = atomicState.item
@@ -972,7 +1082,9 @@ def runAdditionalActions(items) {
                 triggerStartNotification : [],
                 triggerEndNotification : [],
                 triggerStartRule : [],
-                triggerEndRule : []
+                triggerEndRule : [],
+                triggerStartVariableUpdate : [],
+                triggerEndVariableUpdate : []
             ]
             
             //Gather start and end times in case there are overlapping meetings
@@ -980,9 +1092,24 @@ def runAdditionalActions(items) {
             def nowTime = new Date(now() + (1000 * 10).toLong())
             for (int i = 0; i < items.size(); i++) {
                 def item = items[i]
-                
                 //If no items are found, scheduleStartTime is not included in the object
                 if (!item.containsKey("scheduleStartTime")) {
+                    // If calendar event check to see if variable updates processed and if so reset variable values
+                    if (settings.searchType == "Calendar Event" && settings.parseField == true) {
+                        def parseMappings = atomicState.parseMappings
+                        def parseMap = [:]
+                        for (int n = 0; n < parseMappings.size(); n++) {
+                            def parseMapping = parseMappings[n]
+                            def variableName = parseMapping.variable
+                            def currentValue = (variableName == "None") ? "None" : getGlobalVar(variableName).value
+                            def newValue = parseMapping.endValue
+                            
+                            if (currentValue != newValue) {
+                                updateHubVariable("runAdditionalActions", variableName, newValue)
+                            }
+                        }
+                    }
+                    
                     logMsg.push("scheduleStartTime not set, skipping additional actions")
                     continue
                 }
@@ -1107,6 +1234,27 @@ def runAdditionalActions(items) {
                     }
                 }
                 
+                if (settings.parseField != true) {
+                    logMsg.push("parseField: ${settings.parseField}, not parsing data")
+                } else {
+                    logMsg.push("scheduling start parse field actions ${scheduleItem}")
+                    def fieldMappings = gatherFieldMappings(item)
+                    scheduleItems.triggerStartVariableUpdate.push(scheduleItem)
+                    def triggerStartVariableUpdate = [:]
+                    triggerStartVariableUpdate.status = "scheduled"
+                    triggerStartVariableUpdate.variableUpdates = fieldMappings.start
+                    additionalActions.triggerStartVariableUpdate = triggerStartVariableUpdate
+                    
+                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
+                        logMsg.push("scheduling end parse field actions ${scheduleItem}")
+                        scheduleItems.triggerEndVariableUpdate.push(scheduleItem)
+                        def triggerEndVariableUpdate = [:]
+                        triggerEndVariableUpdate.status = "scheduled"
+                        triggerEndVariableUpdate.variableUpdates = fieldMappings.end
+                        additionalActions.triggerEndVariableUpdate = triggerEndVariableUpdate
+                    }
+                }
+                
                 logMsg.push("additionalActions: ${additionalActions}")
                 if (!additionalActions.isEmpty()) {
                     item.additionalActions = additionalActions
@@ -1154,8 +1302,8 @@ def runAdditionalActions(items) {
         }
     }
     
-    logMsg.push("\nAFTER items:\n${items}")
     atomicState.item = items
+    logMsg.push("\nAFTER items:\n${items}")
     logDebug("${logMsg}")
 }
 
@@ -1217,6 +1365,12 @@ def triggerAdditionalAction(ArrayList data=[]) {
             case "triggerEndRule":
                 triggerEndRule(itemID)
                 break
+            case "triggerStartVariableUpdate":
+                triggerStartVariableUpdate(itemID)
+                break
+            case "triggerEndVariableUpdate":
+                triggerEndVariableUpdate(itemID)
+                break
         }
         
         if (item != null) {
@@ -1224,13 +1378,13 @@ def triggerAdditionalAction(ArrayList data=[]) {
                 item.additionalActions = [:]
             }
 
-            if (actionName == "triggerSwitchControl") {
+            if (["triggerSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(actionName) > -1) {
                 if (item.additionalActions[actionName] instanceof HashMap) {
                     item.additionalActions[actionName].status = "processed"
                 } else {
-                    def triggerSwitchControl = [:]
-                    triggerSwitchControl.status = "processed"
-                    item.additionalActions[actionName] = triggerSwitchControl
+                    def triggerValueMap = [:]
+                    triggerValueMap.status = "processed"
+                    item.additionalActions[actionName] = triggerValueMap
                 }
             } else {
                 item.additionalActions[actionName] = "processed"
@@ -1244,6 +1398,72 @@ def triggerAdditionalAction(ArrayList data=[]) {
     logMsg.push("\nAFTER items:\n${items}")
     atomicState.item = items
     logDebug("${logMsg}")
+}
+
+def gatherFieldMappings(item) {
+    def logMsg = ["gatherFieldMappings - item: ${item}"]
+    def answer = [
+        start: [:],
+        end: [:]
+    ]
+    def matchFieldName = settings.fieldToParse
+    def matchFieldValue
+    switch (matchFieldName) {
+        case "location":
+            matchFieldValue = item.eventLocation
+            break
+        case "description":
+            matchFieldValue = item.eventDescriptionRaw
+            break
+        case "body":
+            matchFieldValue = item.messageBodyRaw
+            break
+        default:
+            matchFieldValue = (settings.searchType == "Calendar Event") ? item.eventTitle : (settings.searchType == "Gmail") ? item.messageTitle: item.taskTitle
+    }
+    matchFieldValue = matchFieldValue.toString()
+    logMsg.push("matchFieldValue before: ${matchFieldValue}")
+    
+    if (matchFieldValue != "" && matchFieldValue != "none") {
+        def parseMappings = atomicState.parseMappings
+        def parseMap = [:]
+        for (int i = 0; i < parseMappings.size(); i++) {
+            def parseMapping = parseMappings[i]
+            parseMap[parseMapping.textPrefix] = [
+                endValue: parseMapping.endValue,
+                variable: parseMapping.variable,
+                location: parseMapping.location
+            ]
+        }
+        
+        def parseTextList = parseMap.keySet()
+        def matchFieldSplit = matchFieldValue.split("\n")
+        for (int m = 0; m < matchFieldSplit.size(); m++) {
+            def matchFieldLine = matchFieldSplit[m]
+            for (int p = 0; p < parseTextList.size(); p++) {
+                def parseText = parseTextList[p]
+                if (parseText != "" && matchFieldLine.startsWith(parseText)) {
+                    def varName = parseMap[parseText].variable
+                    def varLocation = parseMap[parseText].location
+                    def endValue = parseMap[parseText].endValue
+                    def varValue
+                    if (varLocation == "NextLine") {
+                        varValue = matchFieldSplit[m+1]
+                    } else {
+                        varValue = matchFieldLine.replace(parseText, "").trim()
+                    }
+                    answer.start[varName] = varValue
+                    if (settings.searchType == "Calendar Event") {
+                        answer.end[varName] = endValue
+                    }
+                }
+            }
+        }
+    }
+    
+    logMsg.push("answer: ${answer}")
+    logDebug("${logMsg}")
+    return answer
 }
 
 def gatherControlSwitches(item) {
@@ -1403,6 +1623,75 @@ def gatherControlSwitches(item) {
     logMsg.push("answer: ${answer}")
     logDebug("${logMsg}")
     return answer
+}
+
+def triggerStartVariableUpdate(itemID) {
+    def items = atomicState.item
+    def item
+    if (settings.searchType == "Calendar Event") {
+        item = items.find{it.eventID == itemID}
+    } else if (settings.searchType == "Gmail") {
+        item = items.find{it.messageID == itemID}
+    } else {
+        item = items.find{it.taskID == itemID}
+    }
+    
+    def logMsg = ["triggerStartVariableUpdate - itemID: ${itemID}, item: ${item}"]
+    
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartVariableUpdate") && item.additionalActions.triggerStartVariableUpdate.containsKey("variableUpdates") && !item.additionalActions.triggerStartVariableUpdate.variableUpdates.isEmpty()) {
+        def variableList = []
+        def variableUpdates = item.additionalActions.triggerStartVariableUpdate.variableUpdates
+        def variableNameList = variableUpdates.keySet()
+        for (int i = 0; i < variableNameList.size(); i++) {
+            def variableName = variableNameList[i]
+            def variableValue = variableUpdates[variableName]
+            logMsg.push("variableName: ${variableName}, variableValue: ${variableValue}")
+            updateHubVariable("triggerStartVariableUpdate", variableName, variableValue)
+        }
+    }
+    
+    logDebug("${logMsg}")
+}
+
+def triggerEndVariableUpdate(itemID) {
+    def items = atomicState.item
+    def item
+    if (settings.searchType == "Calendar Event") {
+        item = items.find{it.eventID == itemID}
+    } else if (settings.searchType == "Gmail") {
+        item = items.find{it.messageID == itemID}
+    } else {
+        item = items.find{it.taskID == itemID}
+    }
+    
+    def logMsg = ["triggerEndVariableUpdate - itemID: ${itemID}, item: ${item}"]
+    
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerEndVariableUpdate") && item.additionalActions.triggerEndVariableUpdate.containsKey("variableUpdates") && !item.additionalActions.triggerEndVariableUpdate.variableUpdates.isEmpty()) {
+        def variableList = []
+        def variableUpdates = item.additionalActions.triggerEndVariableUpdate.variableUpdates
+        def variableNameList = variableUpdates.keySet()
+        for (int i = 0; i < variableNameList.size(); i++) {
+            def variableName = variableNameList[i]
+            def variableValue = variableUpdates[variableName]
+            logMsg.push("variableName: ${variableName}, variableValue: ${variableValue}")
+            updateHubVariable("triggerEndVariableUpdate", variableName, variableValue)
+        }
+    }
+    
+    logDebug("${logMsg}")
+}
+
+def updateHubVariable(fromFunction, variableName, variableValue) {
+    def logMsg = "${fromFunction}, Hub Variable ${variableName} set to ${variableValue}"
+    
+    if (variableName == "None") {
+        logMsg = "${fromFunction}, Hub Variable not set in settings, skipping update"
+    } else {
+        setGlobalVar(variableName, variableValue)
+    }
+    
+    logDebug("${logMsg}")
+    logInfo(logMsg)
 }
 
 def triggerSwitchControl(itemID) {
@@ -1591,6 +1880,9 @@ def composeNotification(fromFunction, msg, itemID) {
                     case "offSwitches":
                         value = gatherSwitchNames(item, "off")
                         break
+                    case "variableUpdates":
+                        value = gatherVariableUpdates(item)
+                        break
                     default:
                         value = item[variableName].toString()
                 }
@@ -1629,6 +1921,22 @@ def gatherSwitchNames(item, key) {
             switchList.push(item.additionalActions.triggerSwitchControl.matchSwitches[key][i].name)
         }
         answer = "${switchList.join(", ")}"
+    }
+    
+    return answer
+}
+
+def gatherVariableUpdates(item) {
+    def answer = "none"
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartVariableUpdate") && item.additionalActions.triggerStartVariableUpdate instanceof HashMap && item.additionalActions.triggerStartVariableUpdate.containsKey("variableUpdates") && !item.additionalActions.triggerStartVariableUpdate.variableUpdates.isEmpty()) {
+        def variableList = []
+        def variableUpdates = item.additionalActions.triggerStartVariableUpdate.variableUpdates
+        def variableNameList = variableUpdates.keySet()
+        for (int i = 0; i < variableNameList.size(); i++) {
+            def variableName = variableNameList[i]
+            variableList.push(variableName + ": " + variableUpdates[variableName])
+        }
+        answer = "${variableList.join(", ")}"
     }
     
     return answer
@@ -1763,7 +2071,7 @@ def compare2Items(current, previous) {
             
             for (int k = 0; k < itemKeys.size(); k++) {
                 def key = itemKeys[k]
-                def value = (key == "triggerSwitchControl") ? previous.additionalActions[key].status : previous.additionalActions[key]
+                def value = (["triggerSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(key) > -1) ? previous.additionalActions[key].status : previous.additionalActions[key]
                 if (value == "processed") {
                     compareValues.push(true)
                     answer.processed.push(key)
@@ -1866,6 +2174,32 @@ private dVersion() {
 }
 
 def appButtonHandler(btn) {
+    if (btn.startsWith("mapping")) {
+        def rowData = btn.replace("mapping", "")
+        def slurper = new JsonSlurper()
+        rowData = slurper.parseText(rowData)
+        def parseMappings = (atomicState.parseMappings) ?:[]
+        parseMappings[rowData.row] = [
+            textPrefix: rowData.textPrefix,
+            location: rowData.location,
+            variable: rowData.variable
+        ]
+        if (rowData.containsKey("endValue")) {
+            parseMappings[rowData.row].endValue = rowData.endValue
+        }
+        atomicState.parseMappings = parseMappings
+        return
+    }
+    
+    if (btn.startsWith("deleteRow")) {
+        def rowNumber = btn.replace("deleteRow", "")
+        rowNumber = rowNumber.toInteger()
+        def parseMappings = atomicState.parseMappings
+        parseMappings.remove(rowNumber)
+        atomicState.parseMappings = parseMappings
+        return
+    }
+    
     switch(btn) {
         case "pauseButton":
 			atomicState.isPaused = true
@@ -1874,8 +2208,13 @@ def appButtonHandler(btn) {
 			atomicState.isPaused = false
 			break
         case "refreshButton":
-		    poll()
+            poll()
 			return
+        case "addRow":
+            def parseMappings = atomicState.parseMappings
+            parseMappings.push([textPrefix:"",location:"SameLine",variable:"None"])
+            atomicState.parseMappings = parseMappings
+            return
     }
     updated()
 }
