@@ -1,4 +1,4 @@
-def driverVersion() { return "4.2.0" }
+def driverVersion() { return "4.3.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -110,7 +110,7 @@ def poll() {
                 state.kind = (value.indexOf("#") > -1) ? value.split("#")[1] : value
                 itemFound = true
                 continue
-            } else if (["labelIDs", "messageID", "messageTo", "messageFrom"].indexOf(key) > -1) {
+            } else if (["labelIDs", "messageID", "messageTo", "messageFrom", "messageBodyRaw", "eventDescriptionRaw"].indexOf(key) > -1) {
                 // Don't process these keys
                 continue
             } else if (["scheduleStartTime", "scheduleEndTime", "recurrenceId", "threadID", "additionalActions"].indexOf(key) > -1 && value != " ") {
