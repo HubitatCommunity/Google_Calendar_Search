@@ -1,4 +1,4 @@
-def appVersion() { return "4.2.0" }
+def appVersion() { return "4.3.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -802,10 +802,13 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             if (event.description && event.description != null && event.description.trim() != "") {
                 eventDetails.eventDescription = event.description
                 //Description is an HTML field, remove html tags, special characters, and spaces
-                eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
+                eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll("<br>", "\n")
                 eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\<.*?\\>", " ")
                 eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\\&.*?\\;", " ")
+                eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll("\r", "\n")
                 eventDetails.eventDescription = eventDetails.eventDescription.trim().replaceAll(" +", " ")
+                eventDetails.eventDescriptionRaw = eventDetails.eventDescription
+                eventDetails.eventDescription = eventDetails.eventDescription.replaceAll("\n"," ")
             } else {
                 eventDetails.eventDescription = "none"
             }
@@ -1155,13 +1158,17 @@ def getMessage(messageID) {
     def message = apiGet("getMessage", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, message: ${message}")
     def messageDetails = [:]
-        
+    
     if (message && message.id) {
         messageDetails.messageID = message.id
         messageDetails.threadID = message.threadId
         messageDetails.labelIDs = message.labelIds
         def messageBody = message.snippet
-        messageDetails.messageBody = messageBody ? messageBody : "none"
+        if (messageBody) {
+            messageDetails.messageBody = messageBody
+            byte[] messageBodyRawBytes = message.payload.parts[0].body.data.decodeBase64()
+            messageDetails.messageBodyRaw = new String(messageBodyRawBytes)
+        }
         messageDetails.messageReceived = new Date(message.internalDate.toLong())
         def payloadHeaders = message.payload.headers
         def messageTitle = payloadHeaders.find{it.name == "Subject"}.value
