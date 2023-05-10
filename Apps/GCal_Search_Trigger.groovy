@@ -470,7 +470,7 @@ def getParseFieldDescription(searchType) {
     answer.description += "<li>Each line of the chosen field will be processed looking for specific text entered in the Text Prefix input</li>" 
     answer.description += "<li>If a match is found, the remaining text on that line (or next line) will become the value of the selected Hub Variable</li>"
     if (searchType == "Calendar Event") {
-        answer.description += "<li>At the end of the ${searchType.toLowerCase()}, the variables can be set to a specified value</li>"
+        answer.description += "<li>At the end of the ${searchType.toLowerCase()}, the variables can be set to a specified value <b>unless left blank and the previous value parsed will remain</b></li>"
     }
     answer.description += "</ul>"
 
@@ -1104,7 +1104,7 @@ def runAdditionalActions(items) {
                             def currentValue = (variableName == "None") ? "None" : getGlobalVar(variableName).value
                             def newValue = parseMapping.endValue
                             
-                            if (currentValue != newValue) {
+                            if (newValue != null && newValue != "" && currentValue != newValue) {
                                 updateHubVariable("runAdditionalActions", variableName, newValue)
                             }
                         }
@@ -1686,6 +1686,8 @@ def updateHubVariable(fromFunction, variableName, variableValue) {
     
     if (variableName == "None") {
         logMsg = "${fromFunction}, Hub Variable not set in settings, skipping update"
+    }else if (variableValue == null || variableValue == "") {
+        logMsg = "${fromFunction}, Hub Variable ${variableName} value to set on scheduled end blank, skipping update"
     } else {
         setGlobalVar(variableName, variableValue)
     }
