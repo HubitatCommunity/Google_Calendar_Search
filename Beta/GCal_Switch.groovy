@@ -1,4 +1,4 @@
-def driverVersion() { return "4.3.1" }
+def driverVersion() { return "4.3.2" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -121,8 +121,8 @@ def poll() {
             } else if (key == "switch") {
                 result << sendEvent(name: key, value: (value == "defaultValue") ? defaultValue : toggleValue )
             } else {
-                if (key == "eventStartTime" && settings.useOffsetTimeStamps == true) value = item.scheduleStartTime
-                if (key == "eventEndTime" && settings.useOffsetTimeStamps == true) value = item.scheduleEndTime
+                if (key == "eventStartTime" && settings.useOffsetTimeStamps == true && item.scheduleStartTime) value = item.scheduleStartTime
+                if (key == "eventEndTime" && settings.useOffsetTimeStamps == true && item.scheduleEndTime) value = item.scheduleEndTime
                 result << sendEvent(name: key, value: (value instanceof Date) ? parent.formatDateTime(value) : value )
             }
             
