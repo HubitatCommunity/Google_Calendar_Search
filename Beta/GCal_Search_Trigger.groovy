@@ -1,4 +1,4 @@
-def appVersion() { return "4.3.2" }
+def appVersion() { return "4.3.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -99,7 +99,7 @@ def mainPage() {
                     if (watchListOptions == "error") {
                         paragraph "${parent.getFormat("warning", "The Google Calendar API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/api/calendar-json.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
                     } else {
-                        logDebug("Calendar list = ${watchListOptions}")
+                        //logDebug("Calendar list = ${watchListOptions}")
                         input name: "watchList", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
                         input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
                         input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
@@ -703,7 +703,7 @@ def getNextEvents() {
         offsetEnd = settings.offsetEnd.toInteger()
         offsetEnd = offsetEnd * 60 * 1000
     }
-    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat)
+    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, app.label)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
     def foundMatch = false
@@ -847,7 +847,7 @@ def getNextTasks() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextTasks(settings.watchList, search, endTimePreference)
+    def items = parent.getNextTasks(settings.watchList, search, endTimePreference, app.label)
     logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
     
     def sequentialEventOffset = false
@@ -924,7 +924,7 @@ def getNextReminders() {
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextReminders(search, endTimePreference)
+    def items = parent.getNextReminders(search, endTimePreference, app.label)
     logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
     
     def completeAllPastDue = true
