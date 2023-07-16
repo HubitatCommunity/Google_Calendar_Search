@@ -1,4 +1,4 @@
-def appVersion() { return "4.3.2" }
+def appVersion() { return "4.3.3" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -90,7 +90,10 @@ def mainPage() {
         }
         section("${getFormat("box", "Options")}") {
             input name: "appName", type: "text", title: "Name this parent app", required: true, defaultValue: "GCal Search", submitOnChange: true
-            input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
+            input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false, submitOnChange: true, width: 4
+            if (settings.isDebugEnabled == true) {
+                input name: "debugAuth", type: "bool", title: "Debug authentication?", defaultValue: false, required: false, width: 4
+            }
             href "utilitiesPage", title: "Utilities", description: "Tap to access utilities"
             paragraph "${getFormat("line")}"
         }
@@ -516,7 +519,7 @@ private refreshAuthToken() {
     }
     
     logMsg.push("returning ${answer}")
-    logDebug("${logMsg}")
+    logDebug("${logMsg}", "auth")
     return answer
 }
 
@@ -526,14 +529,20 @@ def authTokenValid(fromFunction) {
         return false
     }
     
+    def answer
+    def logMsg = ["authTokenValid - fromFunction: ${fromFunction}"]
     if (atomicState.tokenExpires >= now()) {
-        logDebug "authTokenValid - fromFunction: ${fromFunction}, authToken good expires ${new Date(atomicState.tokenExpires)}"
-        return true
+        logMsg.push("authToken good expires ${new Date(atomicState.tokenExpires)}")
+        answer = true
     } else {
         def refreshAuthToken = refreshAuthToken()
-        logDebug "authTokenValid - fromFunction: ${fromFunction}, authToken ${(atomicState.tokenExpires == null) ? "null" : "expired (" + new Date(atomicState.tokenExpires) + ")"} - calling refreshAuthToken: ${refreshAuthToken}"
-        return refreshAuthToken
+        logMsg.push("authToken ${(atomicState.tokenExpires == null) ? "null" : "expired (" + new Date(atomicState.tokenExpires) + ")"} - calling refreshAuthToken: ${refreshAuthToken}")
+        answer = refreshAuthToken
     }
+    
+    logMsg.push("returning ${answer}")
+    logDebug("${logMsg}", "auth")
+    return answer
 }
 
 def revokeAccess() {
@@ -596,7 +605,7 @@ def apiGet(fromFunction, uri, path, queryParams) {
     }
     
     logMsg.push("apiResponse: ${apiResponse}")
-    logDebug("${logMsg}")
+    logDebug("${logMsg}", "auth")
     return apiResponse
 }
 
@@ -634,7 +643,7 @@ def apiPut(fromFunction, uri, path, bodyParams) {
         logMsg.push("Authentication Problem")
     }
     
-    logDebug("${logMsg}")
+    logDebug("${logMsg}", "auth")
     return apiResponse
 }
 
@@ -672,7 +681,7 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
         logMsg.push("Authentication Problem")
     }
     
-    logDebug("${logMsg}")
+    logDebug("${logMsg}", "auth")
     return apiResponse
 }
 
@@ -720,7 +729,7 @@ def apiPost(fromFunction, apiPrefs, bodyParams) {
         logMsg.push("Authentication Problem")
     }
     
-    logDebug("${logMsg}")
+    logDebug("${logMsg}", "auth")
     return apiResponse
 }
 
@@ -748,34 +757,32 @@ def getCalendarList() {
         calendarList = calendars
     }
     
-    logDebug("${logMsg}")
+    //logDebug("${logMsg}")
     return calendarList
 }
 
-def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offsetEnd, dateFormat) {    
+def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, appName=null) {    
     endTimePreference = translateEndTimePref(endTimePreference)
-    def logMsg = ["getNextEvents - watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}"]
+    def logMsg = ["getNextEvents - appName: ${appName}, watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}"]
     def eventList = []
     def uri = "https://www.googleapis.com"
     def path = "/calendar/v3/calendars/${watchCalendar}/events"
     
     def queryParams = [
-        timeZone: location.timeZone,
+        timeZone: location.timeZone.getID(),
         //maxResults: 1,
         orderBy: "startTime",
         singleEvents: true,
         //timeMin: getCurrentTime(),
         timeMin: getStartTime(offsetEnd),
-        //timeMin: "2023-07-12T23:59:59-0400",
         timeMax: getEndDate(endTimePreference)
-        //timeMax: "2023-07-13T23:59:59-0400"
     ]
     
     if (GoogleMatching == true && search != "") {
         queryParams['q'] = "${search}"
     }
 
-    def events = apiGet("getNextEvents", uri, path, queryParams)
+    def events = apiGet("${appName}-getNextEvents", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
     
     if (events.items && events.items.size() > 0) {
@@ -877,9 +884,9 @@ def getTaskList() {
     return taskList
 }
 
-def getNextTasks(taskList, search, endTimePreference) {    
+def getNextTasks(taskList, search, endTimePreference, appName=null) {    
     endTimePreference = translateEndTimePref(endTimePreference)
-    def logMsg = ["getNextTasks - taskList: ${taskList}, search: ${search}, endTimePreference: ${endTimePreference}"]
+    def logMsg = ["getNextTasks - appName: ${appName}, taskList: ${taskList}, search: ${search}, endTimePreference: ${endTimePreference}"]
     def tasksList = []
     def uri = "https://www.googleapis.com"
     def path = "/tasks/v1/lists/${taskList}/tasks"
@@ -888,7 +895,7 @@ def getNextTasks(taskList, search, endTimePreference) {
         showCompleted: false,
         dueMax: getEndDate(endTimePreference)
     ]
-    def tasks = apiGet("getNextTasks", uri, path, queryParams)
+    def tasks = apiGet("${appName}-getNextTasks", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, tasks: ${tasks}")
         
     if (tasks.items && tasks.items.size() > 0) {
@@ -927,9 +934,9 @@ def completeTask(watchTaskList, taskID) {
 
 /* ============================= Start Google Reminder - WARNING: Uses unnofficial API ============================= */
 
-def getNextReminders(search, endTimePreference) {
+def getNextReminders(search, endTimePreference, appName=null) {
     endTimePreference = translateEndTimePref(endTimePreference)
-    def logMsg = ["getNextReminders - search: ${search}, endTimePreference: ${endTimePreference}"]
+    def logMsg = ["getNextReminders - appName: ${appName}, search: ${search}, endTimePreference: ${endTimePreference}"]
     def reminderList = []
     def dueMax = getEndDate(endTimePreference, false)
     logMsg.push("dueMax: ${dueMax}")
@@ -945,7 +952,7 @@ def getNextReminders(search, endTimePreference) {
         contentType: "application/json",
         jsonBody: true
     ]
-    def reminders = apiPost("getNextReminders", apiPrefs, bodyParams)
+    def reminders = apiPost("${appName}-getNextReminders", apiPrefs, bodyParams)
     logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
         
     if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
@@ -1540,8 +1547,8 @@ def updateAppLabel() {
     app.updateLabel(appName)
 }
 
-private logDebug(msg) {
-    if (isDebugEnabled != null && isDebugEnabled != false) {
+private logDebug(msg, type=null) {
+    if (isDebugEnabled != null && isDebugEnabled != false && ((type == "auth" && debugAuth == true) || type == null)) {
         if (msg instanceof List && msg.size() > 0) {
             msg = msg.join(", ")
         }
