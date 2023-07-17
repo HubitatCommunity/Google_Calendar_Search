@@ -1,4 +1,4 @@
-def driverVersion() { return "4.3.0" }
+def driverVersion() { return "4.4.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -54,6 +54,7 @@ metadata {
     
     preferences {
         input name: "switchValue", type: "enum", title: "Switch Default Value", required: true, options:["on","off"]
+        input name: "useOffsetTimeStamps", type: "bool", title: "Use offset for start and end timestamps?", defaultValue: false, required: false
         input name: "isDebugEnabled", type: "bool", title: "Enable debug logging?", defaultValue: false, required: false
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
     }
@@ -120,6 +121,8 @@ def poll() {
             } else if (key == "switch") {
                 result << sendEvent(name: key, value: (value == "defaultValue") ? defaultValue : toggleValue )
             } else {
+                if (key == "eventStartTime" && settings.useOffsetTimeStamps == true && item.scheduleStartTime) value = item.scheduleStartTime
+                if (key == "eventEndTime" && settings.useOffsetTimeStamps == true && item.scheduleEndTime) value = item.scheduleEndTime
                 result << sendEvent(name: key, value: (value instanceof Date) ? parent.formatDateTime(value) : value )
             }
             
