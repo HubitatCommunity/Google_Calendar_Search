@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.0" }
+def appVersion() { return "4.4.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -761,7 +761,7 @@ def getCalendarList() {
     return calendarList
 }
 
-def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, appName=null) {    
+def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, appName=null, timeZoneQuery) {    
     endTimePreference = translateEndTimePref(endTimePreference)
     def logMsg = ["getNextEvents - appName: ${appName}, watchCalendar: ${watchCalendar}, search: ${search}, endTimePreference: ${endTimePreference}"]
     def eventList = []
@@ -769,7 +769,6 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
     def path = "/calendar/v3/calendars/${watchCalendar}/events"
     
     def queryParams = [
-        timeZone: location.timeZone.getID(),
         //maxResults: 1,
         orderBy: "startTime",
         singleEvents: true,
@@ -780,6 +779,10 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
     
     if (GoogleMatching == true && search != "") {
         queryParams['q'] = "${search}"
+    }
+    
+    if (timeZoneQuery == true) {
+        queryParams['timeZone'] = location.timeZone.getID()
     }
 
     def events = apiGet("${appName}-getNextEvents", uri, path, queryParams)
