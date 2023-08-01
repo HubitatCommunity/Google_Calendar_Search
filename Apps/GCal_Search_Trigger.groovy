@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.0" }
+def appVersion() { return "4.4.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -101,6 +101,7 @@ def mainPage() {
                         //logDebug("Calendar list = ${watchListOptions}")
                         input name: "watchList", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
                         input name: "includeAllDay", type: "bool", title: "Include All Day Events?", defaultValue: true, required: false
+                        input name: "timeZoneQuery", type: "bool", title: "Include hub's timezone in calendar query? By default the timezone set within the Google Calendar is used when querying for events. If your hub's timezone and calendar's timezone are different the matched events may have incorrect date/timestamps. Enable this setting to query for events based on your hub's timezone. You can check your Google calendars timezone by following the instructions in <a href='https://support.google.com/calendar/answer/37064#zippy=%2Cchange-the-time-zone-of-one-calendar' target='_blank'>this article</a>.", defaultValue: false
                         input name: "searchField", type: "enum", title: "Calendar field to search", required: true, defaultValue: "title", options:["title","location"]
                         input name: "GoogleMatching", type: "bool", title: "Use Google Query Matching? By default calendar event matching is done by the HE hub and it allows multiple search strings. If you prefer to use Google search features and special characters, toggle this setting. Caching of events is not supported when using Google query matching.", defaultValue: false, submitOnChange: true
                     }
@@ -298,6 +299,10 @@ def mainPage() {
                     input name: "ignoreWords", type: "text", title: "Verbs within text to ignore (separate multiple words by comma)", required: false, defaultValue: "turn", width: 6
                     input name: "conjunctionWords", type: "text", title: "Conjunction words for multiple switches (separate multiple words by comma)", required: false, defaultValue: "and", width: 6
                     input "controlSwitchList", "capability.switch", title: "Control These Switches", multiple: true, required: true
+                    if (settings.searchType == "Calendar Event") {
+                        paragraph "${parent.getFormat("text", "<u>Toggle switches at the event scheduled end</u>: Switches that were controlled at the event scheduled start can optionally be toggled at the scheduled end of the event.")}"
+                        input "controlSwitchEndToggle", "bool", title: "Toggle switches at the event scheduled end?", defaultValue: false
+                    }
                 }
                 paragraph "${parent.getFormat("line")}"
                 
@@ -405,12 +410,12 @@ def getNextItemDescription() {
                 itemDetails += (item.taskDueDate != item.scheduleStartTime) ? " (<b>Due Date Offset</b>: ${formatDateTime(item.scheduleStartTime)}) " : ""
             }
             
-            if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerSwitchControl") && !item.additionalActions.triggerSwitchControl.matchSwitches.isEmpty()) {
-                if (item.additionalActions.triggerSwitchControl.matchSwitches.on) {
+            if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartSwitchControl") && !item.additionalActions.triggerStartSwitchControl.matchSwitches.isEmpty()) {
+                if (item.additionalActions.triggerStartSwitchControl.matchSwitches.on) {
                     itemDetails += "\n<b>Switches to turn on</b>: "
                     itemDetails += gatherSwitchNames(item, "on")
                 }
-                if (item.additionalActions.triggerSwitchControl.matchSwitches.off) {
+                if (item.additionalActions.triggerStartSwitchControl.matchSwitches.off) {
                     itemDetails += "\n<b>Switches to turn off</b>: "
                     itemDetails += gatherSwitchNames(item, "off")
                 }
@@ -702,7 +707,7 @@ def getNextEvents() {
         offsetEnd = settings.offsetEnd.toInteger()
         offsetEnd = offsetEnd * 60 * 1000
     }
-    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, app.label)
+    def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, app.label, settings.timeZoneQuery)
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
     def foundMatch = false
@@ -1084,7 +1089,8 @@ def runAdditionalActions(items) {
         } else {
             def additionalActions = [:]
             def scheduleItems = [
-                triggerSwitchControl : [],
+                triggerStartSwitchControl : [],
+                triggerEndSwitchControl: [],
                 triggerReminderNotification : [],
                 triggerStartNotification : [],
                 triggerEndNotification : [],
@@ -1198,11 +1204,20 @@ def runAdditionalActions(items) {
                     logMsg.push("controlSwitches: ${settings.controlSwitches}, not controlling switches")
                 } else {
                     logMsg.push("scheduling switch control actions ${scheduleItem}")
-                    scheduleItems.triggerSwitchControl.push(scheduleItem)
+                    scheduleItems.triggerStartSwitchControl.push(scheduleItem)
                     def triggerSwitchControl = [:]
                     triggerSwitchControl.status = "scheduled"
                     triggerSwitchControl.matchSwitches = gatherControlSwitches(item)
-                    additionalActions.triggerSwitchControl = triggerSwitchControl
+                    additionalActions.triggerStartSwitchControl = triggerSwitchControl
+                    
+                    if (settings.searchType == "Calendar Event" && settings.controlSwitchEndToggle != null && scheduleItem.containsKey("end")) {
+                        logMsg.push("scheduling end switch control actions ${scheduleItem}")
+                        scheduleItems.triggerEndSwitchControl.push(scheduleItem)
+                        triggerSwitchControl = [:]
+                        triggerSwitchControl.status = "scheduled"
+                        triggerSwitchControl.matchSwitches = gatherControlSwitches(item)
+                        additionalActions.triggerEndSwitchControl = triggerSwitchControl
+                    }
                 }
                 
                 if (settings.sendNotification != true || (settings.notificationReminderMsg == null && settings.notificationStartMsg == null && settings.notificationEndMsg == null) || (settings.notificationDevices == null && settings.speechDevices == null)) {
@@ -1354,8 +1369,11 @@ def triggerAdditionalAction(ArrayList data=[]) {
         logMsg.push("\nactionName: ${actionName}, item BEFORE: ${item}")
         
         switch (actionName) {
-            case "triggerSwitchControl":
-                triggerSwitchControl(itemID)
+            case "triggerStartSwitchControl":
+                triggerStartSwitchControl(itemID)
+                break
+            case "triggerEndSwitchControl":
+                triggerEndSwitchControl(itemID)
                 break
             case "triggerReminderNotification":
                 triggerReminderNotification(itemID)
@@ -1385,7 +1403,7 @@ def triggerAdditionalAction(ArrayList data=[]) {
                 item.additionalActions = [:]
             }
 
-            if (["triggerSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(actionName) > -1) {
+            if (["triggerStartSwitchControl", "triggerEndSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(actionName) > -1) {
                 if (item.additionalActions[actionName] instanceof HashMap) {
                     item.additionalActions[actionName].status = "processed"
                 } else {
@@ -1703,7 +1721,7 @@ def updateHubVariable(fromFunction, variableName, variableValue) {
     logInfo(logMsg)
 }
 
-def triggerSwitchControl(itemID) {
+def triggerStartSwitchControl(itemID) {
     def items = atomicState.item
     def item
     if (settings.searchType == "Calendar Event") {
@@ -1715,10 +1733,10 @@ def triggerSwitchControl(itemID) {
     }
     
     def matchSwitches = [:]
-    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerSwitchControl") && !item.additionalActions.triggerSwitchControl.matchSwitches.isEmpty()) {
-        matchSwitches = item.additionalActions.triggerSwitchControl.matchSwitches
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartSwitchControl") && !item.additionalActions.triggerStartSwitchControl.matchSwitches.isEmpty()) {
+        matchSwitches = item.additionalActions.triggerStartSwitchControl.matchSwitches
     }
-    def logMsg = ["triggerSwitchControl - itemID: ${itemID}, item: ${item}, matchSwitches: ${matchSwitches}"]
+    def logMsg = ["triggerStartSwitchControl - itemID: ${itemID}, item: ${item}, matchSwitches: ${matchSwitches}"]
     def logInfoMsg = []
     if (matchSwitches.on) {
         def onSwitches = []
@@ -1742,6 +1760,58 @@ def triggerSwitchControl(itemID) {
         }
         if (offSwitches.size() > 0) {
             logInfoMsg.push("turning off: " + offSwitches.join(", "))
+        }
+    }
+    def itemCompleted = completeItem()
+    if (itemCompleted) {
+        getNextItems()
+        logInfoMsg.push("${settings.searchType.toLowerCase()} completed")
+    }
+    
+    logMsg.push("${settings.searchType} completed: ${itemCompleted}")
+    logDebug("${logMsg}")
+    logInfo("Toggling Switches - " + logInfoMsg.join(", "))
+}
+
+def triggerEndSwitchControl(itemID) {
+    def items = atomicState.item
+    def item
+    if (settings.searchType == "Calendar Event") {
+        item = items.find{it.eventID == itemID}
+    } else if (settings.searchType == "Gmail") {
+        item = items.find{it.messageID == itemID}
+    } else {
+        item = items.find{it.taskID == itemID}
+    }
+    
+    def matchSwitches = [:]
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerEndSwitchControl") && !item.additionalActions.triggerEndSwitchControl.matchSwitches.isEmpty()) {
+        matchSwitches = item.additionalActions.triggerEndSwitchControl.matchSwitches
+    }
+    def logMsg = ["triggerEndSwitchControl - itemID: ${itemID}, item: ${item}, matchSwitches: ${matchSwitches}"]
+    def logInfoMsg = []
+    if (matchSwitches.on) {
+        def onSwitches = []
+        for (int i = 0; i < matchSwitches.on.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == matchSwitches.on[i].id}
+            logMsg.push("turning off ${device.name}")
+            onSwitches.push(device.name)
+            device?.off()
+        }
+        if (onSwitches.size() > 0) {
+            logInfoMsg.push("turning off: " + onSwitches.join(", "))
+        }
+    }
+    if (matchSwitches.off) {
+        def offSwitches = []
+        for (int i = 0; i < matchSwitches.off.size(); i++) {
+            def device = settings.controlSwitchList?.find{it.id == matchSwitches.off[i].id}
+            logMsg.push("turning on ${device.name}")
+            offSwitches.push(device.name)
+            device?.on()
+        }
+        if (offSwitches.size() > 0) {
+            logInfoMsg.push("turning on: " + offSwitches.join(", "))
         }
     }
     def itemCompleted = completeItem()
@@ -1924,10 +1994,10 @@ def composeNotification(fromFunction, msg, itemID) {
 
 def gatherSwitchNames(item, key) {
     def answer = "none"
-    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerSwitchControl") && !item.additionalActions.triggerSwitchControl.matchSwitches.isEmpty() && item.additionalActions.triggerSwitchControl.matchSwitches[key]) {
+    if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartSwitchControl") && !item.additionalActions.triggerStartSwitchControl.matchSwitches.isEmpty() && item.additionalActions.triggerStartSwitchControl.matchSwitches[key]) {
         def switchList = []
-        for (int i = 0; i < item.additionalActions.triggerSwitchControl.matchSwitches[key].size(); i++) {
-            switchList.push(item.additionalActions.triggerSwitchControl.matchSwitches[key][i].name)
+        for (int i = 0; i < item.additionalActions.triggerStartSwitchControl.matchSwitches[key].size(); i++) {
+            switchList.push(item.additionalActions.triggerStartSwitchControl.matchSwitches[key][i].name)
         }
         answer = "${switchList.join(", ")}"
     }
@@ -2080,7 +2150,7 @@ def compare2Items(current, previous) {
             
             for (int k = 0; k < itemKeys.size(); k++) {
                 def key = itemKeys[k]
-                def value = (["triggerSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(key) > -1) ? previous.additionalActions[key].status : previous.additionalActions[key]
+                def value = (["triggerStartSwitchControl", "triggerEndSwitchControl", "triggerStartVariableUpdate", "triggerEndVariableUpdate"].indexOf(key) > -1) ? previous.additionalActions[key].status : previous.additionalActions[key]
                 if (value == "processed") {
                     compareValues.push(true)
                     answer.processed.push(key)
