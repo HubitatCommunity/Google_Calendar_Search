@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.1" }
+def appVersion() { return "4.4.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -631,7 +631,6 @@ def initialize() {
         }
     }
     
-    //poll()
     runIn(5, poll)
 }
 
@@ -1441,7 +1440,7 @@ def gatherFieldMappings(item) {
             matchFieldValue = item.eventDescriptionRaw
             break
         case "body":
-            matchFieldValue = item.messageBodyRaw
+            matchFieldValue = (item.containsKey("messageBodyRaw")) ? item.messageBodyRaw : item.messageBody
             break
         default:
             matchFieldValue = (settings.searchType == "Calendar Event") ? item.eventTitle : (settings.searchType == "Gmail") ? item.messageTitle: item.taskTitle
