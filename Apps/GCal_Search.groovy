@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.2" }
+def appVersion() { return "4.4.3" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -1152,7 +1152,7 @@ def getNextMessages(search, setlabelList=null) {
             messageDetails.kind = "message"
             messageList.push(messageDetails)
         }
-
+        
         if (setlabelList != null) {
             batchModifyMessages(messageIDs, setlabelList.add, setlabelList.remove)
         }
@@ -1181,8 +1181,12 @@ def getMessage(messageID) {
         if (messageBody) {
             messageDetails.messageBody = messageBody
             if (message.payload && message.payload.parts && message.payload.parts.size() > 0) {
-                byte[] messageBodyRawBytes = message.payload.parts[0].body.data.decodeBase64()
-                messageDetails.messageBodyRaw = new String(messageBodyRawBytes)
+                try {
+                    byte[] messageBodyRawBytes = message.payload.parts[0].body.data.decodeBase64()
+                    messageDetails.messageBodyRaw = new String(messageBodyRawBytes)
+                } catch (e) {
+                    messageDetails.messageBodyRaw = messageBody
+                }
             }
         }
         messageDetails.messageReceived = new Date(message.internalDate.toLong())
