@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.2" }
+def appVersion() { return "4.4.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -51,7 +51,7 @@ def mainPage() {
 			}
             if (state.refreshed) {
                 def refreshText = parseDateTime(state.refreshed)
-                if (state.installed == true && settings.createChildSwitch) {
+                if (state.installed == true && settings.createChildSwitch && state.deviceID) {
                     def childSwitch = getChildDevice(state.deviceID)
                     refreshText = "<a href='/device/edit/$childSwitch.id' target='_blank' title='Open Device Page for $childSwitch'>Last Refreshed</a>:\n${refreshText}"
                 } else {
@@ -2045,7 +2045,8 @@ def triggerStartRule(itemID) {
     if (settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanTrue")
     }
-    runRMAPI("runRuleAct")
+    //Delay running rule actions so the private boolean has time to upate
+    runIn(2, runRMAPI)
 }
 
 def triggerEndRule(itemID) {
@@ -2056,10 +2057,11 @@ def triggerEndRule(itemID) {
     if (settings.searchType == "Calendar Event" && settings.updateRuleBoolean == true) {
         runRMAPI("setRuleBooleanFalse")
     }
-    runRMAPI("runRuleAct")
+    //Delay running rule actions so the private boolean has time to upate
+    runIn(2, runRMAPI)
 }
 
-def runRMAPI(action) {
+def runRMAPI(action="runRuleAct") {
     def logInfoMsg = []
     if (settings.legacyRule) {
         logInfoMsg.push(settings.legacyRule)
