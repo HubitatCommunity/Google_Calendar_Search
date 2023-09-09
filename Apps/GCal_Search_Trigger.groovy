@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.3" }
+def appVersion() { return "4.4.4" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -707,6 +707,9 @@ def getNextEvents() {
         offsetEnd = offsetEnd * 60 * 1000
     }
     def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, app.label, settings.timeZoneQuery)
+    if (items == "connectionError") {
+        return items
+    }
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
     def foundMatch = false
@@ -830,7 +833,7 @@ def getNextEvents() {
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
-    runAdditionalActions((items.isEmpty()) ? [item] : items)
+    runAdditionalActions((items && items.isEmpty()) ? [item] : items)
     return item
 }
 
@@ -851,7 +854,10 @@ def getNextTasks() {
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
     def items = parent.getNextTasks(settings.watchList, search, endTimePreference, app.label)
-    logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
+    if (items == "connectionError") {
+        return items
+    }
+    logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${(items.isEmpty()) ? [item] : items.join("\n")}\nAFTER ")
     
     def sequentialEventOffset = false
     if (items && items.size() > 0) {     
@@ -899,7 +905,9 @@ def completeTask(taskID) {
     def item = parent.completeTask(settings.watchList, taskID)
     logMsg.push("item: ${item}")
     
-    if (item.status && item.status == "completed") {
+    if (item == "connectionError") {
+        return false
+    } else if (item.status && item.status == "completed") {
         answer = true
     }
     
@@ -923,12 +931,14 @@ def getNextReminders() {
         return item
     }
     
-    
     def logMsg = []
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
     def items = parent.getNextReminders(search, endTimePreference, app.label)
-    logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${items.join("\n")}\nAFTER ")
+    if (items == "connectionError") {
+        return items
+    }
+    logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${(items.isEmpty()) ? [item] : items.join("\n")}\nAFTER ")
     
     def completeAllPastDue = true
     def sequentialEventOffset = false
@@ -986,6 +996,10 @@ def getNextReminders() {
 def completeReminder(taskID) {
     def logMsg = ["completeReminder - taskID: ${taskID}"]
     def answer = parent.completeReminder(taskID)
+    
+    if (answer == "connectionError") {
+        return false
+    }
     triggerEndNotification()
     triggerEndRule()
 
@@ -1002,6 +1016,9 @@ def getGmailQuery() {
     }
     if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") == -1) {
         def mailLabels = parent.getUserLabels()
+        if (mailLabels == "connectionError") {
+            return mailLabels
+        }
         for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
             def messageQueryLabel = mailLabels[settings.messageQueryLabels[i]]
             searchString.push("label:" + messageQueryLabel)
@@ -1035,6 +1052,9 @@ def getNextMessages() {
     
     def logMsg = []
     def searchString = getGmailQuery()
+    if (searchString == "connectionError") {
+        return searchString
+    }
     def setLabels
     
     if (settings.messageApplyLabels == true) {
@@ -1065,7 +1085,7 @@ def getNextMessages() {
         item  = items[0]
     }
     
-    logMsg.push("getNextMessages - BEFORE searchString: ${searchString}, setLabels: ${setLabels}, items:\n${items.join("\n")}\nAFTER ")
+    logMsg.push("getNextMessages - BEFORE searchString: ${searchString}, setLabels: ${setLabels}, items:\n${(items.isEmpty()) ? [item] : items.join("\n")}\nAFTER ")
     logMsg.push("item: ${item}")
     logDebug("${logMsg}")
     
