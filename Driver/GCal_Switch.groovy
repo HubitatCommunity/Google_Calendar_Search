@@ -1,4 +1,4 @@
-def driverVersion() { return "4.4.3" }
+def driverVersion() { return "4.4.4" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -86,12 +86,17 @@ def push(buttonNumber) {
 }
 
 def poll() {
-    unschedule()
+    //unschedule()
     def logMsg = []
     def result = []
     
     def syncValue
     def item = parent.getNextItems()
+    if (item == "connectionError") {
+        return "connectionError"
+    } else {
+        unschedule()
+    }
     def nowDateTime = new Date()
     result << sendEvent(name: "lastUpdated", value: parent.formatDateTime(nowDateTime), displayed: false)
     def currentValue = device.currentSwitch
