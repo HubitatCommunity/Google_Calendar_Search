@@ -1,4 +1,4 @@
-def driverVersion() { return "4.4.3" }
+def driverVersion() { return "4.4.4" }
 /**
  *  Gmail Notification Device Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy
@@ -50,10 +50,15 @@ def parse(String description) {
 
 def deviceNotification(message) {
     if (settings.enableNofications == null || settings.enableNofications == true) {
-        parent.sendMessage(settings.toEmail, settings.fromDisplayName, settings.toSubject, message)
-        sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toEmail}")
-        logInfo(message + " sent to " + settings.toEmail)
-        logDebug(message + " sent to " + settings.toEmail)
+        def sendMessageStatus = parent.sendMessage(settings.toEmail, settings.fromDisplayName, settings.toSubject, message)
+        if (sendMessageStatus == "connectionError") {
+            logInfo("Network is unreachable, message could not be sent to " + settings.toEmail)
+            logDebug("Network is unreachable, message could not be sent to " + settings.toEmail)
+        } else {
+            sendEvent(name: "lastMessage", value: "${message}", descriptionText: "Sent to ${settings.toEmail}")
+            logInfo(message + " sent to " + settings.toEmail)
+            logDebug(message + " sent to " + settings.toEmail)
+        }
     } else {
         logDebug("Device ${settings.toEmail} disabled: ${message}")
     }
