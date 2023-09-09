@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.3" }
+def appVersion() { return "4.4.4" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -511,10 +511,14 @@ private refreshAuthToken() {
                     answer = true
                 }
             }
-        }
-        catch(Exception e) {
-            log.error "refreshAuthToken - caught exception refreshing auth token: " + e
-            answer = false
+        } catch (e) {
+            if (e.toString().indexOf("HttpHostConnectException") > -1) {
+                log.error "refreshAuthToken - Network is unreachable (connect failed), error: ${e}"
+                answer = "connectionError"
+            } else {
+                log.error "refreshAuthToken - caught exception refreshing auth token: ${e}"
+                answer = false
+            }
         }
     }
     
@@ -590,16 +594,22 @@ def apiGet(fromFunction, uri, path, queryParams) {
             }
         } catch (e) {
             if (e.toString().indexOf("HttpResponseException") > -1) {
-                if (e.response.status == 401 && refreshAuthToken()) {
+                if (e.response.status == 401 && refreshAuthToken() == true) {
                     return apiGet(fromFunction, uri, path, queryParams)
                 } else if (e.response.status == 403) {
-                    log.error "apiGet - path: ${path}, ${e}, ${e.getResponse().getData()}"
+                    log.error "apiGet - fromFunction: ${fromFunction}, status: ${e.response.status}, path: ${path}, error: ${e}, data: ${e.getResponse().getData()}"
                     apiResponse = "error"
                 }
+            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
+                log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
+                apiResponse = "connectionError"
             } else {
                 log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
+    } else if (isAuthorized == "connectionError") {
+        logMsg.push("Network is unreachable")
+        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -633,12 +643,18 @@ def apiPut(fromFunction, uri, path, bodyParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPut(fromFunction, uri, path, bodyParams)
+            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
+                log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
+                apiResponse = "connectionError"
             } else {
-                log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, ${e}"
+                log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
+    } else if (isAuthorized == "connectionError") {
+        logMsg.push("Network is unreachable")
+        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -671,12 +687,18 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
                 logDebug "Resp Status: ${resp.status}, apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPatch(fromFunction, uri, path, bodyParams)
+            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
+                log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
+                apiResponse = "connectionError"
             } else {
-                log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, ${e}"
+                log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
+    } else if (isAuthorized == "connectionError") {
+        logMsg.push("Network is unreachable")
+        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -719,12 +741,18 @@ def apiPost(fromFunction, apiPrefs, bodyParams) {
                 logDebug "apiResponse: ${apiResponse}"
             }
         } catch (e) {
-            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken()) {
+            if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPost(fromFunction, apiPrefs, bodyParams)
+            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
+                log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
+                apiResponse = "connectionError"
             } else {
-                log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, ${e}"
+                log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
+    } else if (isAuthorized == "connectionError") {
+        logMsg.push("Network is unreachable")
+        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -788,7 +816,9 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
     def events = apiGet("${appName}-getNextEvents", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
     
-    if (events.items && events.items.size() > 0) {
+    if (events == "connectionError") {
+        eventList = events
+    } else if (events.items && events.items.size() > 0) {
         def defaultReminder = (events.containsKey("defaultReminders") && events.defaultReminders.size() > 0) ? events.defaultReminders[0] : [method:"popup", minutes:15]
         for (int i = 0; i < events.items.size(); i++) {
             def event = events.items[i]
@@ -901,7 +931,9 @@ def getNextTasks(taskList, search, endTimePreference, appName=null) {
     def tasks = apiGet("${appName}-getNextTasks", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, tasks: ${tasks}")
         
-    if (tasks.items && tasks.items.size() > 0) {
+    if (tasks == "connectionError") {
+        tasksList = tasks
+    } else if (tasks.items && tasks.items.size() > 0) {
         for (int i = 0; i < tasks.items.size(); i++) {
             def task = tasks.items[i]
             def taskDetails = [:]
@@ -958,7 +990,9 @@ def getNextReminders(search, endTimePreference, appName=null) {
     def reminders = apiPost("${appName}-getNextReminders", apiPrefs, bodyParams)
     logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
         
-    if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
+    if (reminders == "connectionError") {
+        reminderList = reminders
+    } else if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
         for (int i = 0; i < reminders.data.task.size(); i++) {
             def reminder = reminders.data.task[i]
             def dueDate = getReminderDate(reminder.dueDate)
@@ -1084,7 +1118,9 @@ def completeReminder(taskID) {
         def reminders = apiPost("completeReminder", apiPrefs, bodyParams)
         logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
 
-        if (reminders.status == 200 ) {
+        if (reminders == "connectionError") {
+            return false
+        } else if (reminders.status == 200 ) {
             reminderCompleted = true
         }
     }
@@ -1107,7 +1143,9 @@ def getUserLabels() {
     def userLabels = apiGet("getUserLabels", uri, path, queryParams)
     logMsg.push("getUserLabels - path: ${path}, queryParams: ${queryParams}, userLabels: ${userLabels}")
 
-    if (userLabels instanceof Map && userLabels.labels.size() > 0) {
+    if (userLabels == "connectionError") {
+        userLabelList = userLabels
+    } else if (userLabels instanceof Map && userLabels.labels.size() > 0) {
         def includeSystemLabels = ["INBOX", "IMPORTANT", "STARRED", "TRASH", "UNREAD"]
         for (int i = 0; i < userLabels.labels.size(); i++) {
             def userLabelItem = userLabels.labels[i]
@@ -1142,7 +1180,9 @@ def getNextMessages(search, setlabelList=null) {
     logMsg.push("queryParams: ${queryParams}, messages: ${messages}")
     def messageIDs = []
     
-    if (messages.resultSizeEstimate > 0) {
+    if (messages == "connectionError" ) {
+        return messages
+    } else if (messages.resultSizeEstimate > 0) {
         for (int i = 0; i < messages.messages.size(); i++) {
             def message = messages.messages[i]
             def messageID = message.id
