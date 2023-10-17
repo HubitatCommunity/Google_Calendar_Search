@@ -1,4 +1,4 @@
-def driverVersion() { return "4.4.4" }
+def driverVersion() { return "4.5.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -37,12 +37,13 @@ metadata {
         attribute "eventEndTime", "string"
         attribute "eventAllDay", "bool"
         attribute "eventReminderMin", "number"
+        attribute "nextEvent", "string"
         
-        //Task and Reminder
+        //Task
         attribute "taskTitle", "string"
         attribute "taskID", "string"
         attribute "taskDueDate", "string"
-        attribute "repeat", "string" //Only comes across for Reminders
+        //attribute "repeat", "string" //Only comes across for Reminders
         
         //Gmail
         attribute "messageTitle", "string"
@@ -92,7 +93,7 @@ def poll() {
     
     def syncValue
     def item = parent.getNextItems()
-    if (item == "connectionError") {
+    if (item == null || !item instanceof HashMap) {
         return "connectionError"
     } else {
         unschedule()
@@ -188,7 +189,7 @@ def off() {
 }
 
 def updateTask(value) {
-    if (state.kind != "task" && state.kind != "reminder") {
+    if (state.kind != "task") {
         return
     }
     
