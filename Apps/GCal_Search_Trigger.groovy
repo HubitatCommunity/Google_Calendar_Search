@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.4" }
+def appVersion() { return "4.5.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -27,7 +27,7 @@ definition(
     name: "GCal Search Trigger",
     namespace: "HubitatCommunity",
     author: "Mike Nestor & Anthony Pastor, cometfish, ritchierich",
-    description: "Integrates Hubitat with Google Calendar, Tasks, and Reminders.",
+    description: "Integrates Hubitat with Google Calendar, Tasks, and Gmail.",
     category: "Convenience",
     parent: "HubitatCommunity:GCal Search",
     documentationLink: "https://community.hubitat.com/t/release-google-calendar-search/71397",
@@ -80,8 +80,23 @@ def mainPage() {
                 if (scopesAuthorized == null) {
                     log.error "The parent GCal Search is using an old OAuth credential type. Please open this app and follow the steps to complete the upgrade and click Done."
                 }
+                //Reminder Remove at a later time...
+                if (settings.searchType == "Reminder") {
+                    scopesAuthorized.push("Reminder")
+                    def reminderRemoveText = "Google has deprecated Reminders. <a href='https://support.google.com/tasks/answer/12572073?hl=en' target='_blank'>Click here to learn more about the switch from Reminders to Google Tasks</a>."
+                    paragraph "${parent.getFormat("warning", "${reminderRemoveText}")}"
+                    def taskDetailText = '<p><span style="font-size: 14pt;">This Search Trigger will no longer function:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>An error will appear in the log if an automation is in place trying to invoke a reminder search refresh</li>'
+                    taskDetailText += '<li>Please either remove this child app or change it to a Task search trigger</li><li><b>Please note (from Google documentation):</b> The Task due date only records date information; the time portion of the timestamp is discarded when setting the due date. It isn\'t possible to read or write the time that a task is due via the API.</li>'
+                    taskDetailText +=  '<li>As a result the task due date will default to midnight of the date selected</li><li>Please see <a href="https://issuetracker.google.com/issues/128979662" target="_blank">this Issue Tracker from 2019</a> and vote to have due date time added to the Task API</li></ul>'
+                    paragraph "${taskDetailText}"
+                }
+                
+                if (settings.searchType == "Task") {
+                    paragraph "<b>Please note (from Google documentation):</b> The Task due date only records date information; the time portion of the timestamp is discarded when setting the due date. It isn\'t possible to read or write the time that a task is due via the API. As a result the task due date will default to midnight of the date selected. Please see <a href='https://issuetracker.google.com/issues/128979662' target='_blank'>this Issue Tracker from 2019</a> and vote to have due date time added to the Task API."
+                }
+                
                 def watchListOptions, mailLabels
-                input name: "searchType", title:"Do you want to search Google Calendar Event, Task, Reminder, or Gmail?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
+                input name: "searchType", title:"Do you want to search Google Calendar Event, Task, or Gmail?", type: "enum", required:true, multiple:false, options:scopesAuthorized, defaultValue: "Calendar", submitOnChange: true
                 //Default value above isn't working so set a default to prevent app errors
                 if ((settings.searchType == null || settings.searchType == "Calendar") && scopesAuthorized != null) {
                     if (scopesAuthorized.indexOf("Calendar") > -1) {
@@ -96,7 +111,7 @@ def mainPage() {
                 if (settings.searchType == "Calendar Event") {
                     watchListOptions = parent.getCalendarList()
                     if (watchListOptions == "error") {
-                        paragraph "${parent.getFormat("warning", "The Google Calendar API has not been enabled in your Google project.  <a href='https://console.cloud.google.com/apis/api/calendar-json.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
+                        paragraph "${parent.getFormat("warning", "The Google Calendar API has not been enabled in your Google project. <a href='https://console.cloud.google.com/apis/api/calendar-json.googleapis.com' target='_blank'>Please click here to add it the in Google Console</a>. Then refresh this page.")}"
                     } else {
                         //logDebug("Calendar list = ${watchListOptions}")
                         input name: "watchList", title:"Which calendar do you want to search?", type: "enum", required:true, multiple:false, options:watchListOptions, submitOnChange: true
@@ -118,8 +133,9 @@ def mainPage() {
                     settings.GoogleMatching = true // Gmail must use Google Matching
                     settings.appName = "Gmail Search"
                 } else {
+                    // Else here for deprecated Reminder API leaving just in case
                     logDebug("scopesAuthorized: ${scopesAuthorized}")
-                    settings.GoogleMatching = false // Reminder API doesn't allow text searching
+                    settings.GoogleMatching = false
                 }
                 if (settings.GoogleMatching == true) {
                     def searchHelp = ""
@@ -235,6 +251,14 @@ def mainPage() {
                         input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
                         input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
                     }
+                    if (settings.searchType == "Calendar Event") {
+                        paragraph "${parent.getFormat("text", "<u>Set Next Event on Child Switch</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. Set this setting to true if you want the nextEvent attribute on the child switch to be set with details of other events found.")}"
+                        input name: "setNextEvent", type: "bool", title: "Set Next Event on Child Switch", defaultValue: false, required: false, submitOnChange: true
+                        if (settings.setNextEvent == true) {
+                            paragraph "${parent.getFormat("text", "<u>Next Event Detail</u>: " + getNotificationMsgDescription(settings.searchType, false))}"
+                            input name: "nextEventDetail", type: "text", title: "Next Event Detail", required: false, defaultValue: "%eventTitle%"
+                        }
+                    }
                 }
                 paragraph "${parent.getFormat("line")}"
             }
@@ -346,8 +370,11 @@ String buttonLink(String btnName, String linkText, color = "#1A77C9", font = "15
     "<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:$font'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
 }
 
-def getNotificationMsgDescription(searchType) {
-    def answer = "Use %now% to include current date/time of when notification is sent, "
+def getNotificationMsgDescription(searchType, forNotification=true) {
+    def answer = ""
+    if (forNotification == true) {
+        answer = "Use %now% to include current date/time of when notification is sent, "
+    }
     if (searchType == "Calendar Event") {
         answer += "%eventTitle% to include event title, %eventLocation% to include event location, %eventDescription% to include event description, %eventStartTime% to include event start time, %eventEndTime% to include event end time, and %eventAllDay% to include event all day."
         if (settings.setOffset) {
@@ -364,10 +391,10 @@ def getNotificationMsgDescription(searchType) {
             answer += " Offset values can be be added by using %scheduleStartTime%."
         }
     }
-    if (settings.controlSwitches == true) {
+    if (settings.controlSwitches == true && forNotification == true) {
         answer += " With 'Control switches from ${searchType.toLowerCase()} details' enabled switches that will be turned on/off can be added by using %onSwitches% and %offSwitches%."
     }
-    if (settings.parseField == true) {
+    if (settings.parseField == true && forNotification == true) {
         answer += " With 'Parse data from ${searchType.toLowerCase()} details and update hub variables' enabled variables that will be updated can be added by using %variableUpdates%."
     }
     
@@ -461,7 +488,7 @@ def getControlSwitchesDescription(searchType) {
     
     answer.instructions = "Options Explanation:\n"
     answer.instructions += "<ul style='list-style-position: inside;font-size:15px;'>"
-    answer.instructions += "<li><u>${searchType.toLowerCase()} field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
+    answer.instructions += "<li><u>${searchType.toLowerCase()} field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks only have the title field available.</li>"
     answer.instructions += "<li><u>Translation for Off</u>: Defaults to the word 'off' but international users may enter their translation for 'off'</li>"
     answer.instructions += "<li><u>Translation for On</u>: Defaults to the word 'on' but international users may enter their translation for 'on'</li>"
     answer.instructions += "<li><u>Verbs within text to ignore</u>: Optional: Enter word(s) that might be included within the instructions that you want to ignore during the matching process. In English you might say 'turn on the overhead lights' but the word 'turn' isn't really necessary and should be ignored.</li>"
@@ -495,7 +522,7 @@ def getParseFieldDescription(searchType) {
 
     /*answer.instructions = "Options Explanation:\n"
     answer.instructions += "<ul style='list-style-position: inside;font-size:15px;'>"
-    answer.instructions += "<li><u>Reminder field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks and Reminders only have the title field available.</li>"
+    answer.instructions += "<li><u>Reminder field to use...</u>: Field within the the ${searchType.toLowerCase()} to look for instructions.  Tasks only have the title field available.</li>"
     answer.instructions += "</ul>"
     */
     
@@ -657,13 +684,15 @@ def getNextItems() {
     if (settings.searchType == "Task") {
         answer = getNextTasks()
     } else if (settings.searchType == "Reminder") {
-        answer = getNextReminders()
+        //Reminder Remove at a later time...
+        log.error "Google Reminders have been deprecated and replaced with Google Tasks. Please update this search trigger to use Tasks."
     } else if (settings.searchType == "Gmail") {
         answer = getNextMessages()
     } else {
         answer = getNextEvents()
     }
-    if (!state.isPaused) {
+    //Reminder Remove at a later time...
+    if (!state.isPaused && settings.searchType != "Reminder") {
         atomicState.refreshed = parent.getCurrentTime()
     }
     return answer
@@ -673,8 +702,6 @@ def completeItem() {
     def taskID = (state.item instanceof ArrayList) ? state.item[0].taskID : state.item.taskID
 	if (taskID && settings.searchType == "Task") {
         return completeTask(taskID)
-    } else if (taskID && settings.searchType == "Reminder") {
-        return completeReminder(taskID)
     } else {
         return false
     }
@@ -690,6 +717,7 @@ def getNextEvents() {
         eventStartTime: " ",
         eventEndTime: " ",
         eventReminderMin: " ",
+        nextEvent: " ",
         switch: "defaultValue"
     ]
     
@@ -707,7 +735,7 @@ def getNextEvents() {
         offsetEnd = offsetEnd * 60 * 1000
     }
     def items = parent.getNextEvents(settings.watchList, settings.GoogleMatching, search, endTimePreference, offsetEnd, dateFormat, app.label, settings.timeZoneQuery)
-    if (items == "connectionError") {
+    if (items == null || !items instanceof ArrayList) {
         return items
     }
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
@@ -827,6 +855,21 @@ def getNextEvents() {
         logMsg.push("\nfoundMatch: ${foundMatch}")
         if (foundMatch) {
             item  = items[0]
+            if (settings.setNextEvent == true && settings.nextEventDetail != null) {
+                def nextEventDetail = []
+                for (int n = 1; n < items.size(); n++) {
+                    tempItem = items[n]
+                    def nextEventMsg = getVariableValues("getNextEvents", settings.nextEventDetail, tempItem)
+                    nextEventDetail.push(nextEventMsg)
+                }
+                if (nextEventDetail.size() > 0) {
+                    item.nextEvent = nextEventDetail.join(", ")
+                } else {
+                    item.nextEvent = "none"
+                }
+            } else {
+                item.nextEvent = " "
+            }
         }
     }
     
@@ -854,7 +897,7 @@ def getNextTasks() {
     def search = (!settings.search) ? "" : settings.search
     def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
     def items = parent.getNextTasks(settings.watchList, search, endTimePreference, app.label)
-    if (items == "connectionError") {
+    if (items == null || !items instanceof ArrayList) {
         return items
     }
     logMsg.push("getNextTasks - BEFORE search: ${search}, items:\n${(items.isEmpty()) ? [item] : items.join("\n")}\nAFTER ")
@@ -905,7 +948,7 @@ def completeTask(taskID) {
     def item = parent.completeTask(settings.watchList, taskID)
     logMsg.push("item: ${item}")
     
-    if (item == "connectionError") {
+    if (item == null || !item instanceof Map) {
         return false
     } else if (item.status && item.status == "completed") {
         answer = true
@@ -913,96 +956,6 @@ def completeTask(taskID) {
     
     triggerEndNotification()
     triggerEndRule()
-    logMsg.push("returning : ${answer}")
-    logDebug("${logMsg}")
-    return answer
-}
-
-def getNextReminders() {
-    def item = [
-        taskTitle: " ",
-        taskID: " ",
-        taskDueDate: " ",
-        switch: "defaultValue"
-    ]
-    
-    if (state.isPaused) {
-        log.warn "${app.label} is paused, cannot refresh."
-        return item
-    }
-    
-    def logMsg = []
-    def search = (!settings.search) ? "" : settings.search
-    def endTimePreference = (settings.endTimePref == "Number of Hours from Current Time") ? settings.endTimeHours : settings.endTimePref
-    def items = parent.getNextReminders(search, endTimePreference, app.label)
-    if (items == "connectionError") {
-        return items
-    }
-    logMsg.push("getNextReminders - BEFORE search: ${search}, items:\n${(items.isEmpty()) ? [item] : items.join("\n")}\nAFTER ")
-    
-    def completeAllPastDue = true
-    def sequentialEventOffset = false
-    if (items && items.size() > 0) {
-        def foundMatch = false
-        // Check for search string match
-        if (items.size() > 0) {
-            def eventField = "taskTitle"
-            items = matchItem(items, caseSensitive, search, eventField)
-        }
-        
-        for (int i = 0; i < items.size(); i++) {
-            item = items[i]
-            foundMatch = true
-            
-            if (completeAllPastDue && item.repeat != "none" && items.size() > 1) {
-                def recurrenceId = item.recurrenceId
-                def taskIDList = [item.taskID]
-                for (int j = 1; j < items.size(); j++) {
-                    if (items[j].recurrenceId == recurrenceId && taskIDList.indexOf(items[j].taskID) == -1 && now() >= items[j].taskDueDate.getTime()) {
-                        taskIDList.push(items[j].taskID)
-                    }
-                }
-                item.taskID = taskIDList.join(",")
-            }
-            
-            item.scheduleStartTime = new Date(item.taskDueDate.getTime())
-            if (settings.delayToggle == false) {
-                item.scheduleStartTime = new Date()
-            }
-            if (settings.setOffset && settings.offsetStart != null && settings.offsetStart != "") {
-                def origStartTime = new Date(item.taskDueDate.getTime())
-                int offsetStart = settings.offsetStart.toInteger()
-                def tempStartTime = item.scheduleStartTime.getTime()
-                tempStartTime = tempStartTime + (offsetStart * 60 * 1000)
-                item.scheduleStartTime.setTime(tempStartTime)
-                logMsg.push("Task start offset: ${settings.offsetStart}, adjusting time from ${origStartTime} to ${item.scheduleStartTime}")
-            }
-            items[i] = item
-        }
-        
-        logMsg.push("foundMatch: ${foundMatch}")
-        if (foundMatch) {
-            item  = items[0]
-        }
-    }
-    
-    logMsg.push("item: ${item}")
-    logDebug("${logMsg}")
-    
-    runAdditionalActions((items.isEmpty()) ? [item] : items)
-    return item
-}
-
-def completeReminder(taskID) {
-    def logMsg = ["completeReminder - taskID: ${taskID}"]
-    def answer = parent.completeReminder(taskID)
-    
-    if (answer == "connectionError") {
-        return false
-    }
-    triggerEndNotification()
-    triggerEndRule()
-
     logMsg.push("returning : ${answer}")
     logDebug("${logMsg}")
     return answer
@@ -1016,7 +969,7 @@ def getGmailQuery() {
     }
     if (userSearchString.indexOf("label:") == -1 && settings.messageQueryLabels != null && settings.messageQueryLabels.indexOf("none") == -1) {
         def mailLabels = parent.getUserLabels()
-        if (mailLabels == "connectionError") {
+        if (mailLabels == null || !mailLabels instanceof Map) {
             return mailLabels
         }
         for (int i = 0; i < settings.messageQueryLabels.size(); i++) {
@@ -1052,7 +1005,7 @@ def getNextMessages() {
     
     def logMsg = []
     def searchString = getGmailQuery()
-    if (searchString == "connectionError") {
+    if (searchString == null || !searchString instanceof Map) {
         return searchString
     }
     def setLabels
@@ -1960,37 +1913,11 @@ def composeNotification(fromFunction, msg, itemID) {
             items = [items[0]]
         }
         
-        def variableNames = gatherVariableNames(msg)
         def msgList = []
         for (int i = 0; i < items.size(); i++) {
-            def tempMsg = msg
             def item = items[i]
-            for (int v = 0; v < variableNames.size(); v++) {
-                def variableName = variableNames[v]
-                def value
-                switch (variableName) {
-                    case "now":
-                        value = new Date()
-                        break
-                    case "onSwitches":
-                        value = gatherSwitchNames(item, "on")
-                        break
-                    case "offSwitches":
-                        value = gatherSwitchNames(item, "off")
-                        break
-                    case "variableUpdates":
-                        value = gatherVariableUpdates(item)
-                        break
-                    default:
-                        value = item[variableName].toString()
-                }
-                if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
-                    value = formatDateTime(value)
-                }
-                
-                def textMatch = "%" + variableName + "%"
-                tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
-            }
+            def tempMsg = getVariableValues("composeNotification", msg, item)
+            
             if (tempMsg.trim()) {
                 msgList.push(tempMsg)
             }
@@ -2059,6 +1986,49 @@ def gatherVariableNames(msg) {
     
     //logDebug("gatherVariableNames - answer: ${answer}")
     return answer
+}
+
+def getVariableValues(fromFunction, msg, item) {
+    def logMsg = ["getVariableValues fromFunction: ${fromFunction}, msg: ${msg}"]
+    def tempMsg = msg
+    def variableNames = gatherVariableNames(msg)
+    for (int v = 0; v < variableNames.size(); v++) {
+        def variableName = variableNames[v]
+        def value
+        switch (variableName) {
+            case "now":
+                value = new Date()
+                break
+            case "onSwitches":
+                value = gatherSwitchNames(item, "on")
+                break
+            case "offSwitches":
+                value = gatherSwitchNames(item, "off")
+                break
+            case "variableUpdates":
+                value = gatherVariableUpdates(item)
+                break
+            default:
+                value = item[variableName].toString()
+        }
+        
+        if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
+            value = formatDateTime(item[variableName])
+        }
+
+        def textMatch = "%" + variableName + "%"
+        tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
+        logMsg.push("tempMsg: ${tempMsg}")
+    }
+    
+    if (tempMsg.trim()) {
+        msg = tempMsg
+        logMsg.push("returning msg: ${msg}")
+    }
+    
+    logDebug("${logMsg}")
+    
+    return msg
 }
 
 def triggerStartRule(itemID) {
