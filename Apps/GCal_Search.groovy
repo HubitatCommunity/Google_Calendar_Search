@@ -1,4 +1,4 @@
-def appVersion() { return "4.4.4" }
+def appVersion() { return "4.5.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -169,7 +169,7 @@ def authenticationInstructions() {
     text += "<ul style='list-style-position: inside;font-size:15px;'>"
     text += "<li>Tap the 'Authenticate GCal Search' button below to start the authentication process.</li>"
     text += "<li>A popup will appear walking you through process as outlined in the instructions on GitHub.</li>"
-    text += "<li>Be sure to select the appropriate access to Google Calendar, Google Reminders, Google Tasks and/or Gmail.</li>"
+    text += "<li>Be sure to select the appropriate access to Google Calendar, Google Tasks, and/or Gmail.</li>"
     text += "<li>Troubleshooting Note: If the popup presents an 'Authorization Error, Error 400: redirect_uri_mismatch' please check your OAuth credential in the Google Console to ensure it is of type Web application and that the redirect URI is set correctly.</li>"
     text += "</ul>"
     
@@ -403,7 +403,7 @@ def getOAuthInitUrl() {
 		client_id: getClientId(),
 		state: state.oauthInitState,
 		redirect_uri: getRedirectURL(),
-        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/reminders https://mail.google.com/"
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks https://mail.google.com/"
 	]
     
     OAuthInitUrl += "?" + toQueryString(oauthParams)
@@ -512,13 +512,8 @@ private refreshAuthToken() {
                 }
             }
         } catch (e) {
-            if (e.toString().indexOf("HttpHostConnectException") > -1) {
-                log.error "refreshAuthToken - Network is unreachable (connect failed), error: ${e}"
-                answer = "connectionError"
-            } else {
-                log.error "refreshAuthToken - caught exception refreshing auth token: ${e}"
-                answer = false
-            }
+            log.error "refreshAuthToken - caught exception refreshing auth token: ${e}"
+            answer = false
         }
     }
     
@@ -572,7 +567,7 @@ def revokeAccess() {
 
 def apiGet(fromFunction, uri, path, queryParams) {
     def logMsg = []
-    def apiResponse = []  
+    def apiResponse
     def isAuthorized = authTokenValid(fromFunction)
     logMsg.push("apiGet - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
     
@@ -600,16 +595,10 @@ def apiGet(fromFunction, uri, path, queryParams) {
                     log.error "apiGet - fromFunction: ${fromFunction}, status: ${e.response.status}, path: ${path}, error: ${e}, data: ${e.getResponse().getData()}"
                     apiResponse = "error"
                 }
-            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
-                log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
-                apiResponse = "connectionError"
             } else {
                 log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
-    } else if (isAuthorized == "connectionError") {
-        logMsg.push("Network is unreachable")
-        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -621,7 +610,7 @@ def apiGet(fromFunction, uri, path, queryParams) {
 
 def apiPut(fromFunction, uri, path, bodyParams) {
     def logMsg = []
-    def apiResponse = []  
+    def apiResponse
     def isAuthorized = authTokenValid(fromFunction)
     logMsg.push("apiPut - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
     
@@ -645,16 +634,10 @@ def apiPut(fromFunction, uri, path, bodyParams) {
         } catch (e) {
             if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPut(fromFunction, uri, path, bodyParams)
-            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
-                log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
-                apiResponse = "connectionError"
             } else {
                 log.error "apiPut - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
-    } else if (isAuthorized == "connectionError") {
-        logMsg.push("Network is unreachable")
-        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -665,7 +648,7 @@ def apiPut(fromFunction, uri, path, bodyParams) {
 
 def apiPatch(fromFunction, uri, path, bodyParams) {
     def logMsg = []
-    def apiResponse = []  
+    def apiResponse
     def isAuthorized = authTokenValid(fromFunction)
     logMsg.push("apiPatch - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}")
     
@@ -689,16 +672,10 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
         } catch (e) {
             if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPatch(fromFunction, uri, path, bodyParams)
-            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
-                log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
-                apiResponse = "connectionError"
             } else {
                 log.error "apiPatch - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
-    } else if (isAuthorized == "connectionError") {
-        logMsg.push("Network is unreachable")
-        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -709,7 +686,7 @@ def apiPatch(fromFunction, uri, path, bodyParams) {
 
 def apiPost(fromFunction, apiPrefs, bodyParams) {
     def logMsg = []
-    def apiResponse = [:]  
+    def apiResponse
     def isAuthorized = authTokenValid(fromFunction)
     logMsg.push("apiPost - fromFunction: ${fromFunction}, isAuthorized: ${isAuthorized}, apiPrefs: ${apiPrefs}")
     
@@ -736,6 +713,7 @@ def apiPost(fromFunction, apiPrefs, bodyParams) {
         try {
             httpPost(apiParams) {
                 resp ->
+                apiResponse = [:]
                 apiResponse.status = resp.status
                 apiResponse.data = resp.data
                 logDebug "apiResponse: ${apiResponse}"
@@ -743,16 +721,10 @@ def apiPost(fromFunction, apiPrefs, bodyParams) {
         } catch (e) {
             if (e.toString().indexOf("HttpResponseException") > -1 && e.response.status == 401 && refreshAuthToken() == true) {
                 return apiPost(fromFunction, apiPrefs, bodyParams)
-            } else if (e.toString().indexOf("HttpHostConnectException") > -1) {
-                log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
-                apiResponse = "connectionError"
             } else {
                 log.error "apiPost - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
         }
-    } else if (isAuthorized == "connectionError") {
-        logMsg.push("Network is unreachable")
-        apiResponse = "connectionError"
     } else {
         logMsg.push("Authentication Problem")
     }
@@ -816,9 +788,9 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
     def events = apiGet("${appName}-getNextEvents", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
     
-    if (events == "connectionError") {
+    if (events == null || !events instanceof ArrayList) {
         eventList = events
-    } else if (events.items && events.items.size() > 0) {
+    } else if (events && events.items && events.items.size() > 0) {
         def defaultReminder = (events.containsKey("defaultReminders") && events.defaultReminders.size() > 0) ? events.defaultReminders[0] : [method:"popup", minutes:15]
         for (int i = 0; i < events.items.size(); i++) {
             def event = events.items[i]
@@ -880,9 +852,9 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
             eventDetails.eventEndTime = eventEndTime
             eventList.push(eventDetails)
         }
+        logMsg.push("eventList:\n${eventList.join("\n")}")
     }
     
-    logMsg.push("eventList:\n${eventList.join("\n")}")
     logDebug("${logMsg}")
     return eventList
 }
@@ -931,9 +903,9 @@ def getNextTasks(taskList, search, endTimePreference, appName=null) {
     def tasks = apiGet("${appName}-getNextTasks", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, tasks: ${tasks}")
         
-    if (tasks == "connectionError") {
+    if (tasks == null || !tasks instanceof ArrayList) {
         tasksList = tasks
-    } else if (tasks.items && tasks.items.size() > 0) {
+    } else if (tasks && tasks.items && tasks.items.size() > 0) {
         for (int i = 0; i < tasks.items.size(); i++) {
             def task = tasks.items[i]
             def taskDetails = [:]
@@ -944,9 +916,9 @@ def getNextTasks(taskList, search, endTimePreference, appName=null) {
             taskDetails.taskDueDate = sdf.parse(task.due)
             tasksList.push(taskDetails)
         }
+        logMsg.push("tasksList:\n${tasksList.join("\n")}")
     }
     
-    logMsg.push("tasksList:\n${tasksList.join("\n")}")
     logDebug("${logMsg}")
     return tasksList
 }
@@ -967,171 +939,6 @@ def completeTask(watchTaskList, taskID) {
 
 /* ============================= End Google Task ============================= */
 
-/* ============================= Start Google Reminder - WARNING: Uses unnofficial API ============================= */
-
-def getNextReminders(search, endTimePreference, appName=null) {
-    endTimePreference = translateEndTimePref(endTimePreference)
-    def logMsg = ["getNextReminders - appName: ${appName}, search: ${search}, endTimePreference: ${endTimePreference}"]
-    def reminderList = []
-    def dueMax = getEndDate(endTimePreference, false)
-    logMsg.push("dueMax: ${dueMax}")
-    def bodyParams = [
-        //"max_results": 10,
-        //"utc_due_before_ms": dueMax.getTime()
-        "due_before_ms": dueMax.getTime()
-    ]
-    
-    def apiPrefs = [
-        uri: "https://reminders-pa.clients6.google.com",
-        path: "/v1internalOP/reminders/list",
-        contentType: "application/json",
-        jsonBody: true
-    ]
-    def reminders = apiPost("${appName}-getNextReminders", apiPrefs, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
-        
-    if (reminders == "connectionError") {
-        reminderList = reminders
-    } else if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
-        for (int i = 0; i < reminders.data.task.size(); i++) {
-            def reminder = reminders.data.task[i]
-            def dueDate = getReminderDate(reminder.dueDate)
-            if (dueDate <= dueMax) {
-                def reminderDetails = [:]
-                reminderDetails.kind = "reminder"
-                reminderDetails.taskTitle = reminder.title ? reminder.title.trim() : "none"
-                reminderDetails.taskID = reminder.taskId.serverAssignedId
-                reminderDetails.taskDueDate = dueDate
-                if (reminder.recurrenceInfo && reminder.recurrenceInfo.recurrence.frequency) {
-                    reminderDetails.repeat = reminder.recurrenceInfo.recurrence.frequency
-                    reminderDetails.recurrenceId = reminder.recurrenceInfo.recurrenceId.id
-                } else {
-                    reminderDetails.repeat = "none"
-                }
-                reminderList.push(reminderDetails)
-            }
-        }
-        reminderList.sort{it.taskDueDate}
-    }
-    
-    logMsg.push("reminderList:\n${reminderList.join("\n")}")
-    logDebug("${logMsg}")
-    return reminderList
-}
-
-def getSpecificReminder(taskID) {
-    def logMsg = ["getSpecificReminder - taskID: ${taskID}"]
-    def reminderList = []
-    def bodyParams = [
-        "taskId": [['serverAssignedId': taskID]]
-    ]
-    
-    def apiPrefs = [
-        uri: "https://reminders-pa.clients6.google.com",
-        path: "/v1internalOP/reminders/get",
-        contentType: "application/json",
-        jsonBody: true
-    ]
-    def reminders = apiPost("getSpecificReminder", apiPrefs, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
-        
-    if (reminders.status == 200 && reminders.data && reminders.data.task && reminders.data.task.size() > 0) {
-        for (int i = 0; i < reminders.data.task.size(); i++) {
-            def reminder = reminders.data.task[i]
-            def reminderDetails = [:]
-            reminderDetails.kind = "reminder"
-            reminderDetails.taskTitle = reminder.title ? reminder.title.trim() : "none"
-            reminderDetails.taskID = reminder.taskId.serverAssignedId
-            reminderDetails.taskDueDate = getReminderDate(reminder.dueDate)
-            reminderList.push(reminderDetails)
-        }
-    }
-    
-    logMsg.push("reminderList:\n${reminderList.join("\n")}")
-    logDebug("${logMsg}")
-    return reminderList
-}
-
-def getReminderDate(dueDate) {
-    //[year:2022, month:1, day:24, time:[hour:20, minute:0, second:0]]
-    //[year:2022, month:2, day:3, allDay:true]
-    def dateString = new Date().copyWith(
-        year: dueDate.year, 
-        month: dueDate.month-1,
-        dayOfMonth: dueDate.day, 
-        hourOfDay: (dueDate.time) ? dueDate.time.hour : 0,
-        minute: (dueDate.time) ? dueDate.time.minute : 0,
-        second: (dueDate.time) ? dueDate.time.second : 0
-    )
-    
-    return dateString
-}
-
-def deleteReminder(taskID) {
-    def logMsg = ["deleteReminder - taskID: ${taskID}"]
-    def reminderDeleted = false
-    def taskIDList = taskID.split(",")
-    for (int i = 0; i < taskIDList.size(); i++) {
-        taskID = taskIDList[i]
-        def bodyParams = [
-            "taskId": [["serverAssignedId": taskID]]
-        ]
-
-        def apiPrefs = [
-            uri: "https://reminders-pa.clients6.google.com",
-            path: "/v1internalOP/reminders/delete",
-            contentType: "application/json",
-            jsonBody: true
-        ]
-        def reminders = apiPost("deleteReminder", apiPrefs, bodyParams)
-        logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
-
-        if (reminders.status == 200 ) {
-            reminderDeleted = true
-        }
-    }
-    
-    logMsg.push("reminderDeleted: ${reminderDeleted}")
-    logDebug("${logMsg}")
-    return reminderDeleted
-}
-
-def completeReminder(taskID) {
-    def logMsg = ["completeReminder - taskID: ${taskID}"]
-    def reminderCompleted = false
-    def taskIDList = taskID.split(",")
-    for (int i = 0; i < taskIDList.size(); i++) {
-        taskID = taskIDList[i]
-        def bodyParams = [
-            "1": ["4": "WRP / /WebCalendar/calendar_190319.03_p1"],
-            "2": ["1": taskID],
-            "4": ["1": ["1": taskID], "8": 1],
-            "7": ["1": [1, 10, 3]],
-        ]
-        
-        def apiPrefs = [
-            uri: "https://reminders-pa.clients6.google.com",
-            path: "/v1internalOP/reminders/update",
-            contentType: "application/json+protobuf",
-            jsonBody: true
-        ]
-        def reminders = apiPost("completeReminder", apiPrefs, bodyParams)
-        logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
-
-        if (reminders == "connectionError") {
-            return false
-        } else if (reminders.status == 200 ) {
-            reminderCompleted = true
-        }
-    }
-
-    logMsg.push("reminderCompleted: ${reminderCompleted}")
-    logDebug("${logMsg}")
-    return reminderCompleted
-}
-
-/* ============================= End Google Reminder ============================= */
-
 /* ============================= Start Gmail ============================= */
 
 def getUserLabels() {
@@ -1142,8 +949,8 @@ def getUserLabels() {
     def queryParams = [:]
     def userLabels = apiGet("getUserLabels", uri, path, queryParams)
     logMsg.push("getUserLabels - path: ${path}, queryParams: ${queryParams}, userLabels: ${userLabels}")
-
-    if (userLabels == "connectionError") {
+    
+    if (userLabels == null || !userLabels instanceof Map) {
         userLabelList = userLabels
     } else if (userLabels instanceof Map && userLabels.labels.size() > 0) {
         def includeSystemLabels = ["INBOX", "IMPORTANT", "STARRED", "TRASH", "UNREAD"]
@@ -1180,7 +987,7 @@ def getNextMessages(search, setlabelList=null) {
     logMsg.push("queryParams: ${queryParams}, messages: ${messages}")
     def messageIDs = []
     
-    if (messages == "connectionError" ) {
+    if (messages == null || !messages instanceof Map) {
         return messages
     } else if (messages.resultSizeEstimate > 0) {
         for (int i = 0; i < messages.messages.size(); i++) {
@@ -1258,7 +1065,7 @@ def batchModifyMessages(messageIDs, addLabels, removeLabels) {
     ]
     
     def messages = apiPost("batchModifyMessages", apiPrefs, bodyParams)
-    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}, reminders: ${reminders}")
+    logMsg.push("bodyParams: ${bodyParams}, apiPrefs: ${apiPrefs}")
     logDebug("${logMsg}")
     return messages
 }
@@ -1422,7 +1229,7 @@ HashMap securityLogin() {
             ]
         )
         { resp ->
-            //			log.debug resp.data?.text
+            //log.debug resp.data?.text
             if (resp.data?.text?.contains("The login information you supplied was incorrect.")) {
                 result = false
             } else {
@@ -1555,9 +1362,6 @@ def getScopesAuthorized() {
     if (scopesAuthorized.indexOf("auth/tasks") > -1) {
         answer.push("Task")
     }
-    if (scopesAuthorized.indexOf("auth/reminders") > -1) {
-        answer.push("Reminder")
-    }
     if (scopesAuthorized.indexOf("mail.google.com") > -1) {
         answer.push("Gmail")
     }
@@ -1634,6 +1438,14 @@ def upgradeSettings() {
             app.removeSetting("cacheThreshold")
             app.removeSetting("clearCache")
             app.removeSetting("resyncNow")
+        }
+        
+        if (currentVersionInt < versionToInt("4.5.0")) {
+            def scopesAuthorized = state.scopesAuthorized
+            if (scopesAuthorized.indexOf("auth/reminders") > -1) {
+                //Previous: https://mail.google.com/ https://www.googleapis.com/auth/reminders https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.readonly
+                atomicState.scopesAuthorized = scopesAuthorized.replace("https://www.googleapis.com/auth/reminders", "")
+            }
         }
         
         atomicState.version = appVersion()
