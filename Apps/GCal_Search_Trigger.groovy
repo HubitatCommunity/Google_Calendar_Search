@@ -1,4 +1,4 @@
-def appVersion() { return "4.5.0" }
+def appVersion() { return "4.5.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -2013,7 +2013,7 @@ def getVariableValues(fromFunction, msg, item) {
         }
         
         if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
-            value = formatDateTime(item[variableName])
+            value = formatDateTime(value)
         }
 
         def textMatch = "%" + variableName + "%"
