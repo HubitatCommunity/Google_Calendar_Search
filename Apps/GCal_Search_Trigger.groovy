@@ -2009,7 +2009,7 @@ def getVariableValues(fromFunction, msg, item) {
                 value = gatherVariableUpdates(item)
                 break
             default:
-                value = item[variableName].toString()
+                value = (item[variableName] instanceof Date) ? item[variableName] : item[variableName].toString()
         }
         
         if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
