@@ -1,4 +1,4 @@
-def appVersion() { return "4.5.1" }
+def appVersion() { return "4.6.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -245,12 +245,6 @@ def mainPage() {
                     if (settings.dateFormat == "Other") {
                         input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
                     }
-                    paragraph "${parent.getFormat("text", "<u>Toggle/Sync Additional Switches</u>: If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.")}"
-                    input name: "controlOtherSwitches", type: "bool", title: "Toggle/Sync Additional Switches?", defaultValue: false, required: false, submitOnChange: true
-                    if (settings.controlOtherSwitches == true) {
-                        input "syncSwitches", "capability.switch", title: "Synchronize These Switches", multiple: true, required: false
-                        input "reverseSwitches", "capability.switch", title: "Reverse These Switches", multiple: true, required: false
-                    }
                     if (settings.searchType == "Calendar Event") {
                         paragraph "${parent.getFormat("text", "<u>Set Next Event on Child Switch</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. Set this setting to true if you want the nextEvent attribute on the child switch to be set with details of other events found.")}"
                         input name: "setNextEvent", type: "bool", title: "Set Next Event on Child Switch", defaultValue: false, required: false, submitOnChange: true
@@ -322,7 +316,7 @@ def mainPage() {
                     input name: "onTranslation", type: "text", title: "Translation for On", required: true, defaultValue: "on", width: 4
                     input name: "ignoreWords", type: "text", title: "Verbs within text to ignore (separate multiple words by comma)", required: false, defaultValue: "turn", width: 6
                     input name: "conjunctionWords", type: "text", title: "Conjunction words for multiple switches (separate multiple words by comma)", required: false, defaultValue: "and", width: 6
-                    input "controlSwitchList", "capability.switch", title: "Control These Switches", multiple: true, required: true
+                    input "controlSwitchList", "capability.switch", title: "Control These Switches", multiple: true, showFilter: true, required: true
                     if (settings.searchType == "Calendar Event") {
                         paragraph "${parent.getFormat("text", "<u>Toggle switches at the event scheduled end</u>: Switches that were controlled at the event scheduled start can optionally be toggled at the scheduled end of the event.")}"
                         input "controlSwitchEndToggle", "bool", title: "Toggle switches at the event scheduled end?", defaultValue: false
@@ -337,6 +331,15 @@ def mainPage() {
                     //paragraph "${parent.getFormat("text", parseFieldDescription.instructions)}"
                     input name: "fieldToParse", type: "enum", title: "${settings.searchType} field to search for text matches", required: true, defaultValue: "title", options:parseFieldDescription.options
                     paragraph parseFieldDescription.mappingsTable
+                }
+                paragraph "${parent.getFormat("line")}"
+                
+                paragraph "${parent.getFormat("text", "Switches can be toggled if a ${searchType.toLowerCase()} is found. You can choose to turn it on or off when a matching item is found.")}"
+                //If you would like other existing switches to follow the switch state of the child GCal Switch, set the following list with those switch(es). Please keep in mind that this is one way from the GCal switch to these switches.
+                input name: "toggleOtherSwitches", type: "bool", title: "Toggle Switches?", defaultValue: false, required: false, submitOnChange: true
+                if (settings.toggleOtherSwitches == true) {
+                    input "otherOnSwitches", "capability.switch", title: "Turn These Switches On", multiple: true, showFilter: true, required: false, width: 4
+                    input "otherOffSwitches", "capability.switch", title: "Turn These Switches Off", multiple: true, showFilter: true, required: false, width: 4
                 }
                 paragraph "${parent.getFormat("line")}"
                 
@@ -1048,7 +1051,7 @@ def getNextMessages() {
 
 def runAdditionalActions(items) {
     def logMsg = ["runAdditionalActions - items: ${items}"]
-    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true && settings.parseField != true) {
+    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true && settings.parseField != true && settings.toggleOtherSwitches != true) {
         logMsg.push("No additional actions to run")
     } else {
         def previousItems = atomicState.item
@@ -1069,7 +1072,9 @@ def runAdditionalActions(items) {
                 triggerStartRule : [],
                 triggerEndRule : [],
                 triggerStartVariableUpdate : [],
-                triggerEndVariableUpdate : []
+                triggerEndVariableUpdate : [],
+                triggerStartSwitchToggle : [],
+                triggerEndSwitchToggle : []
             ]
             
             //Gather start and end times in case there are overlapping meetings
@@ -1249,6 +1254,20 @@ def runAdditionalActions(items) {
                     }
                 }
                 
+                if (settings.toggleOtherSwitches != true) {
+                    logMsg.push("toggleOtherSwitches: ${settings.toggleOtherSwitches}, not toggling other switches")
+                } else {
+                    logMsg.push("scheduling start other switch toggle actions ${scheduleItem}")
+                    scheduleItems.triggerStartSwitchToggle.push(scheduleItem)
+                    additionalActions.triggerStartSwitchToggle = "scheduled"
+
+                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
+                        logMsg.push("scheduling end other switch toggle actions ${scheduleItem}")
+                        scheduleItems.triggerEndSwitchToggle.push(scheduleItem)
+                        additionalActions.triggerEndSwitchToggle = "scheduled"
+                    }
+                }
+                
                 logMsg.push("additionalActions: ${additionalActions}")
                 if (!additionalActions.isEmpty()) {
                     item.additionalActions = additionalActions
@@ -1367,6 +1386,12 @@ def triggerAdditionalAction(ArrayList data=[]) {
                 break
             case "triggerEndVariableUpdate":
                 triggerEndVariableUpdate(itemID)
+                break
+            case "triggerStartSwitchToggle":
+                triggerStartSwitchToggle(itemID)
+                break
+            case "triggerEndSwitchToggle":
+                triggerEndSwitchToggle(itemID)
                 break
         }
         
@@ -2015,7 +2040,7 @@ def getVariableValues(fromFunction, msg, item) {
         if (value != "null" && ["now", "eventStartTime", "eventEndTime", "taskDueDate", "scheduleStartTime", "scheduleEndTime", "messageReceived"].indexOf(variableName) > -1) {
             value = formatDateTime(value)
         }
-
+        
         def textMatch = "%" + variableName + "%"
         tempMsg = (value == "null") ? tempMsg.replace(textMatch, "") : tempMsg.replace(textMatch, value)
         logMsg.push("tempMsg: ${tempMsg}")
@@ -2027,7 +2052,6 @@ def getVariableValues(fromFunction, msg, item) {
     }
     
     logDebug("${logMsg}")
-    
     return msg
 }
 
@@ -2063,6 +2087,20 @@ def runRMAPI(action="runRuleAct") {
         RMUtils.sendAction(settings.currentRule, action, app.label, "5.0")
     }
     logInfo("Running Rules: " + logInfoMsg.join(", "))
+}
+
+def triggerStartSwitchToggle(itemID) {
+    otherOnSwitches?.on()
+    otherOffSwitches?.off()
+    logDebug("triggerStartSwitchToggle - on: ${otherOnSwitches}, off: ${otherOffSwitches}")
+    logInfo("Turning on: ${otherOnSwitches}, Turning off: ${otherOffSwitches}")
+}
+
+def triggerEndSwitchToggle(itemID) {    
+    otherOnSwitches?.off()
+    otherOffSwitches?.on()
+    logDebug("triggerEndSwitchToggle - on: ${otherOffSwitches}, off: ${otherOnSwitches}")
+    logInfo("Turning on: ${otherOffSwitches}, Turning off: ${otherOnSwitches}")
 }
 
 def compareItem(items) {
@@ -2204,16 +2242,6 @@ def parseDateTime(dateTime) {
     return dateTime
 }
 
-def syncChildSwitches(value) {
-    if (value == "on") {
-        syncSwitches?.on()
-        reverseSwitches?.off()
-    } else {
-        syncSwitches?.off()
-        reverseSwitches?.on()
-    }
-}
-
 private uninstalled() {
     logDebug "uninstalled - Delete all child devices"
     
@@ -2335,6 +2363,21 @@ def upgradeSettings() {
     
     if (state.containsKey("matchSwitches")) {
         app.removeSetting("matchSwitches")
+        upgraded = true
+    }
+    
+    if (settings.createChildSwitch != false && (settings.syncSwitches || settings.reverseSwitches)) {
+        if (settings.switchValue == "on") {
+            app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.syncSwitches])
+            app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.reverseSwitches])
+        } else {
+            app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.reverseSwitches])
+            app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.syncSwitches])
+        }
+        app.updateSetting("toggleOtherSwitches",[type: "bool", value: settings.controlOtherSwitches])
+        app.removeSetting("syncSwitches")
+        app.removeSetting("reverseSwitches")
+        app.removeSetting("controlOtherSwitches")
         upgraded = true
     }
     
