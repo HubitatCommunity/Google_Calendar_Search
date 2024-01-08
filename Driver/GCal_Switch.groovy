@@ -1,4 +1,4 @@
-def driverVersion() { return "4.5.1" }
+def driverVersion() { return "4.6.0" }
 /**
  *  GCal Switch Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/GCal_Switch.groovy
@@ -91,7 +91,6 @@ def poll() {
     def logMsg = []
     def result = []
     
-    def syncValue
     def item = parent.getNextItems()
     if (item == null || !item instanceof HashMap) {
         return "connectionError"
@@ -156,16 +155,10 @@ def poll() {
                 logMsg.push("Turning ${compareValue} switch")
                 logInfo(compareValue)
                 result << sendEvent(name: "switch", value: compareValue)
-                syncValue = compareValue
             }
         } else {
             logMsg.push("no events found, turning ${defaultValue} switch")
         }
-    }
-    
-    if (syncValue) {
-        logMsg.push("syncing child switch to ${syncValue}")
-        syncChildSwitches(syncValue)
     }
     
     logDebug("${logMsg}")
@@ -176,7 +169,6 @@ def on() {
     def value = "on"
     sendEvent(name: "switch", value: value)
     logInfo(value)
-    syncChildSwitches(value)
     updateTask(value)
 }
 
@@ -184,7 +176,6 @@ def off() {
     def value = "off"
     sendEvent(name: "switch", value: value)
     logInfo(value)
-    syncChildSwitches(value)
     updateTask(value)
 }
 
@@ -249,10 +240,6 @@ def scheduleOn() {
 def scheduleOff() {
     logDebug("scheduleOff - turning off switch}")
     off()
-}
-
-def syncChildSwitches(value) {
-    parent.syncChildSwitches(value)
 }
 
 private logInfo(value) {
