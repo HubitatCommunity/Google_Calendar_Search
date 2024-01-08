@@ -1,7 +1,7 @@
-# Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device
-Hubitat Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device
+# Google Calendar, Task, and Gmail Search and Gmail Notification Device
+Hubitat Google Calendar, Task and Gmail Search and Gmail Notification Device
 
-For discussion and more information, visit the Hubitat Community <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, Reminder, and Gmail Search and Gmail Notification Device</a>.
+For discussion and more information, visit the Hubitat Community <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Gmail Search and Gmail Notification Device</a>.
 
 ## Google API Setup
 1. Login to the Google Cloud Console: https://console.cloud.google.com
@@ -29,7 +29,7 @@ For discussion and more information, visit the Hubitat Community <a href="https:
     ![image](https://user-images.githubusercontent.com/10900324/151466429-40365e10-e315-447e-95d0-6da9276600a9.png)
 14. Click **Create**
 15. In the OAuth client created popup, **copy the Client ID and Client Secret into your favorite text editor** to use in the GCal Search HE app and click **OK**
-16. Next you will enable access to the Google apps you wish Hubitat to search: Google Calendar API, Tasks API, Gmail API (Reminders uses an unofficial API that doesn't need entitlement in the Console).  Feel free to skip a step if you don't intend for Hubitat to search one of these apps.
+16. Next you will enable access to the Google apps you wish Hubitat to search: Google Calendar API, Tasks API, and Gmail API.  Feel free to skip a step if you don't intend for Hubitat to search one of these apps.
 17. In the top blue search, enter 'calendar api' and choose **Google Calendar API** under Marketplace, or <a href="https://console.cloud.google.com/apis/api/calendar-json.googleapis.com/" target="_blank">click here to navigate directly to this API</a>
     ![image](https://user-images.githubusercontent.com/10900324/151469047-ac8c089d-abdb-4429-a915-6d12b95532a9.png)
 18. Click **Enable**
@@ -62,7 +62,7 @@ Note: Google Calendar Search is available via <a href="https://community.hubitat
 ![image](https://user-images.githubusercontent.com/10900324/115977405-e51ad700-a545-11eb-8d6d-3200e16ec29b.png)
 10. In the bottle left click Go to hubitat.com/Hubitat Calendar (or whatever you named your project)
 ![image](https://user-images.githubusercontent.com/10900324/115977420-1c898380-a546-11eb-84fd-e90d0d481094.png)
-11. Choose which Google Apps to entitle access. This needs to match which APIs you enabled access in the Console (except Reminders). Click **Continue**
+11. Choose which Google Apps to entitle access. This needs to match which APIs you enabled access in the Console. Click **Continue**
 
 ![image](https://user-images.githubusercontent.com/10900324/151471423-93f96511-f5bc-4024-abd1-5dcce5c4c61f.png)
 
@@ -70,4 +70,4 @@ Note: Google Calendar Search is available via <a href="https://community.hubitat
 13. Assuming a successful Google Authentication, a message will appear in HE letting you know and to click Next to continue setup.
 14. Click **Next**
 15. From here you can setup new Search Triggers by clicking **New Search...** and follow the instructions.
-16. If you have any questions or issues, please post them in the <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Reminder Search</a> community thread.
+16. If you have any questions or issues, please post them in the <a href="https://community.hubitat.com/t/release-google-calendar-search/71397" target="_blank">[RELEASE] Google Calendar, Task, and Gmail Search and Gmail Notification Device</a> community thread.
