@@ -1,4 +1,4 @@
-def appVersion() { return "4.5.1" }
+def appVersion() { return "4.6.0" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -1093,6 +1093,10 @@ def sendMessage(toEmail, fromDisplayName, subject, message) {
         fromEmail = encodeString(foundKeywords.From) + "<" + fromEmail + ">"
     } else if (fromDisplayName != null && fromDisplayName != "") {
         fromEmail = encodeString(fromDisplayName) + "<" + fromEmail + ">"
+    }
+    
+    if (message.indexOf("\\n") > -1) {
+        message = message.replace("\\n", "<br>")
     }
     
     def bodyParams = [
