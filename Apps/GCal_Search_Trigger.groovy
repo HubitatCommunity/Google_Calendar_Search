@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.0" }
+def appVersion() { return "4.6.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -2368,11 +2368,11 @@ def upgradeSettings() {
     
     if (settings.createChildSwitch != false && (settings.syncSwitches || settings.reverseSwitches)) {
         if (settings.switchValue == "on") {
-            app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.syncSwitches])
-            app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.reverseSwitches])
+            if (settings.syncSwitches) app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.syncSwitches])
+            if (settings.reverseSwitches) app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.reverseSwitches])
         } else {
-            app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.reverseSwitches])
-            app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.syncSwitches])
+            if (settings.reverseSwitches) app.updateSetting("otherOnSwitches",[type: "capability.switch", value: settings.reverseSwitches])
+            if (settings.syncSwitches) app.updateSetting("otherOffSwitches",[type: "capability.switch", value: settings.syncSwitches])
         }
         app.updateSetting("toggleOtherSwitches",[type: "bool", value: settings.controlOtherSwitches])
         app.removeSetting("syncSwitches")
