@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.0" }
+def appVersion() { return "4.6.1" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -249,9 +249,14 @@ def getNotificationDevices(showAdd=true) {
 	childDevices.sort{it.displayName.toLowerCase()}.each {dev ->
 		def devPrefs = dev.getPreferenceValues()
 		String devLink = "<a href='/device/edit/$dev.id' target='_blank' title='Open Device Page for $dev'>$dev"
-		str += "<tr style='color:black'><td style='border-right:2px solid black'>$devLink</td>" +
-            "<td>${devPrefs.toEmail}</td>" +
-			"<td>${devPrefs.toSubject}</td></tr>"
+		str += "<tr style='color:black'><td style='border-right:2px solid black'>$devLink</td>"
+        if (dev.isDisabled()) {
+            str += "<td style='color: red;'>Device is Disabled</td>" +
+                "<td style='color: red;'>Device is Disabled</td></tr>"
+        } else {
+            str += "<td>${devPrefs.toEmail}</td>" +
+			        "<td>${devPrefs.toSubject}</td></tr>"
+        }
 	}
 	str += "</table>"
     if (showAdd) {
