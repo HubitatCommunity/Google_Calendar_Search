@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.1" }
+def appVersion() { return "4.6.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -1187,7 +1187,7 @@ def runAdditionalActions(items) {
                     triggerSwitchControl.matchSwitches = gatherControlSwitches(item)
                     additionalActions.triggerStartSwitchControl = triggerSwitchControl
                     
-                    if (settings.searchType == "Calendar Event" && settings.controlSwitchEndToggle != null && scheduleItem.containsKey("end")) {
+                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end") && settings.controlSwitchEndToggle == true) {
                         logMsg.push("scheduling end switch control actions ${scheduleItem}")
                         scheduleItems.triggerEndSwitchControl.push(scheduleItem)
                         triggerSwitchControl = [:]
