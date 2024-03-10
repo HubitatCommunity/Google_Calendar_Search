@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.2" }
+def appVersion() { return "4.6.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -340,10 +340,13 @@ def mainPage() {
                 if (settings.toggleOtherSwitches == true) {
                     input "otherOnSwitches", "capability.switch", title: "Turn These Switches On", multiple: true, showFilter: true, required: false, width: 4
                     input "otherOffSwitches", "capability.switch", title: "Turn These Switches Off", multiple: true, showFilter: true, required: false, width: 4
+                    if (settings.searchType == "Calendar Event") {
+                        input "toggleOtherSwitchesEndToggle", "bool", title: "Toggle switches at the event scheduled end?", defaultValue: true
+                    }
                 }
                 paragraph "${parent.getFormat("line")}"
                 
-                if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true || settings.parseField == true) {
+                if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true || settings.parseField == true || settings.toggleOtherSwitches == true) {
                     paragraph "${parent.getFormat("text", "Toggle 'Enable descriptionText logging' below if you want this app to create an event log entry when the additional actions are executed with details on that action.")}"
                     input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
                     paragraph "${parent.getFormat("line")}"
@@ -1261,7 +1264,7 @@ def runAdditionalActions(items) {
                     scheduleItems.triggerStartSwitchToggle.push(scheduleItem)
                     additionalActions.triggerStartSwitchToggle = "scheduled"
 
-                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end")) {
+                    if (settings.searchType == "Calendar Event" && scheduleItem.containsKey("end") && settings.toggleOtherSwitchesEndToggle == true) {
                         logMsg.push("scheduling end other switch toggle actions ${scheduleItem}")
                         scheduleItems.triggerEndSwitchToggle.push(scheduleItem)
                         additionalActions.triggerEndSwitchToggle = "scheduled"
@@ -2336,7 +2339,7 @@ private logDebug(msg) {
 }
 
 private logInfo(msg) {
-    if (settings.txtEnable == true && (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true)) {
+    if (settings.txtEnable == true && (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true || settings.parseField == true || settings.toggleOtherSwitches == true)) {
         log.info "$msg"
     }
 }
