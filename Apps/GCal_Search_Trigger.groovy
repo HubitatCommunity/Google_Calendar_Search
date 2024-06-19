@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.3" }
+def appVersion() { return "4.6.4" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -87,7 +87,7 @@ def mainPage() {
                     paragraph "${parent.getFormat("warning", "${reminderRemoveText}")}"
                     def taskDetailText = '<p><span style="font-size: 14pt;">This Search Trigger will no longer function:</span></p><ul style="list-style-position: inside;font-size:15px;"><li>An error will appear in the log if an automation is in place trying to invoke a reminder search refresh</li>'
                     taskDetailText += '<li>Please either remove this child app or change it to a Task search trigger</li><li><b>Please note (from Google documentation):</b> The Task due date only records date information; the time portion of the timestamp is discarded when setting the due date. It isn\'t possible to read or write the time that a task is due via the API.</li>'
-                    taskDetailText +=  '<li>As a result the task due date will default to midnight of the date selected</li><li>Please see <a href="https://issuetracker.google.com/issues/128979662" target="_blank">this Issue Tracker from 2019</a> and vote to have due date time added to the Task API</li></ul>'
+                    taskDetailText +=  '<li>As a result the task due date will default to midnight of the date selected</li><li>Please see <a href="https://issuetracker.google.com/issues/166896024" target="_blank">this Issue Tracker from 2020</a> and vote to have due date time added to the Task API</li></ul>'
                     paragraph "${taskDetailText}"
                 }
                 
@@ -512,7 +512,7 @@ def getParseFieldDescription(searchType) {
     ]
     answer.description = "Text found within the ${searchType.toLowerCase()} can be mapped to Hub Variables for additional rule processing. For example with an AirBnB rental calendar event, the last 4 digits of the renter's phone number can be mapped to a hub variable that will fire a rule to add these digits as a code to the lock on the property."
     answer.description += "<ul style='list-style-position: inside;font-size:15px;'>"
-    answer.description += "<li>Each line of the chosen field will be processed looking for specific text entered in the Text Prefix input</li>" 
+    answer.description += "<li>Each line of the chosen field will be processed looking for specific text entered in the Text to Find input</li>" 
     answer.description += "<li>If a match is found, the remaining text on that line (or next line) will become the value of the selected Hub Variable</li>"
     if (searchType == "Calendar Event") {
         answer.description += "<li>At the end of the ${searchType.toLowerCase()}, the variables can be set to a specified value <b>unless left blank and the previous value parsed will remain</b></li>"
@@ -547,7 +547,7 @@ def getParseFieldDescription(searchType) {
         str += "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" +
             "</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black' id='parseMappings'>" +
             "<thead><tr style='border-bottom:2px solid black'>" + 
-            "<th>Text Prefix</th>" +
+            "<th>Text to Find</th>" +
             "<th>Value Location</th>" +
             "<th>Variable</th>" +
             "${(searchType == "Calendar Event") ? "<th>Value to Set at Scheduled End</th>" : ""}" +
@@ -1467,7 +1467,8 @@ def gatherFieldMappings(item) {
             def matchFieldLine = matchFieldSplit[m]
             for (int p = 0; p < parseTextList.size(); p++) {
                 def parseText = parseTextList[p]
-                if (parseText != "" && matchFieldLine.startsWith(parseText)) {
+                //if (parseText != "" && matchFieldLine.startsWith(parseText)) {
+                if (parseText != "" && matchFieldLine.toLowerCase().contains(parseText.toLowerCase())) {
                     def varName = parseMap[parseText].variable
                     def varLocation = parseMap[parseText].location
                     def endValue = parseMap[parseText].endValue
@@ -1475,7 +1476,8 @@ def gatherFieldMappings(item) {
                     if (varLocation == "NextLine") {
                         varValue = matchFieldSplit[m+1]
                     } else {
-                        varValue = matchFieldLine.replace(parseText, "").trim()
+                        //varValue = matchFieldLine.replace(parseText, "").trim()
+                        varValue = matchFieldLine.replaceAll("(?i)" + parseText, "").trim()
                     }
                     answer.start[varName] = varValue
                     if (settings.searchType == "Calendar Event") {
