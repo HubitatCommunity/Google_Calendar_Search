@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.4" }
+def appVersion() { return "4.6.5" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -1476,8 +1476,10 @@ def gatherFieldMappings(item) {
                     if (varLocation == "NextLine") {
                         varValue = matchFieldSplit[m+1]
                     } else {
-                        //varValue = matchFieldLine.replace(parseText, "").trim()
-                        varValue = matchFieldLine.replaceAll("(?i)" + parseText, "").trim()
+                        def textStart = matchFieldLine.toLowerCase().indexOf(parseText.toLowerCase())
+                        def textEnd = textStart + parseText.size()
+                        def parseTextTemp = matchFieldLine.substring(textStart,textEnd)
+                        varValue = matchFieldLine.replace(parseTextTemp, "").trim()
                     }
                     answer.start[varName] = varValue
                     if (settings.searchType == "Calendar Event") {
