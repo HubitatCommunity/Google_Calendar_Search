@@ -1,4 +1,4 @@
-def appVersion() { return "4.6.5" }
+def appVersion() { return "4.7.0" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -346,6 +346,15 @@ def mainPage() {
                 }
                 paragraph "${parent.getFormat("line")}"
                 
+                def updateVariableDescription = getVariableUpdateDescription(settings.searchType)
+                paragraph "${parent.getFormat("text", updateVariableDescription.description)}"
+                input "updateVariable", "bool", title: "${updateVariableDescription.title}", defaultValue: false, submitOnChange: true
+                if (settings.updateVariable == true) {
+                    //paragraph "${parent.getFormat("text", updateVariableDescription.instructions)}"
+                    paragraph updateVariableDescription.mappingsTable
+                }
+                paragraph "${parent.getFormat("line")}"
+                
                 if (settings.sendNotification == true || settings.runRuleActions == true || settings.controlSwitches == true || settings.parseField == true || settings.toggleOtherSwitches == true) {
                     paragraph "${parent.getFormat("text", "Toggle 'Enable descriptionText logging' below if you want this app to create an event log entry when the additional actions are executed with details on that action.")}"
                     input name: "txtEnable", type: "bool", title: "Enable descriptionText logging?", defaultValue: false, required: false
@@ -510,7 +519,7 @@ def getParseFieldDescription(searchType) {
         title: "Parse data from ${searchType.toLowerCase()} details and update hub variables",
         options: ["title"]
     ]
-    answer.description = "Text found within the ${searchType.toLowerCase()} can be mapped to Hub Variables for additional rule processing. For example with an AirBnB rental calendar event, the last 4 digits of the renter's phone number can be mapped to a hub variable that will fire a rule to add these digits as a code to the lock on the property."
+    answer.description = "Text found within the ${searchType.toLowerCase()} can be mapped to <a href='/installedapp/direct/hubVariables' target='_blank'>Hub Variables</a> for additional rule processing. For example with an AirBnB rental calendar event, the last 4 digits of the renter's phone number can be mapped to a hub variable that will fire a rule to add these digits as a code to the lock on the property."
     answer.description += "<ul style='list-style-position: inside;font-size:15px;'>"
     answer.description += "<li>Each line of the chosen field will be processed looking for specific text entered in the Text to Find input</li>" 
     answer.description += "<li>If a match is found, the remaining text on that line (or next line) will become the value of the selected Hub Variable</li>"
@@ -554,25 +563,25 @@ def getParseFieldDescription(searchType) {
             "<th><iconify-icon icon='ion:trash-sharp'></iconify-icon></th></tr></thead>"
         for (int m = 0; m < parseMappings.size(); m++) {
             def mapping = parseMappings[m]
-            String deleteRow = buttonLink("deleteRow" + m, "<iconify-icon icon='ion:trash-sharp'></iconify-icon>", "#FF0000", "20px")
+            String deleteRow = buttonLink("deleteRowP" + m, "<iconify-icon icon='ion:trash-sharp'></iconify-icon>", "#FF0000", "20px")
             str += "<tr style='color:black'>" + 
-                "<td><input id='textPrefix$m' name='textPrefix$m' type='text' aria-required='true' value='${mapping.textPrefix}' onChange='captureValue($m)'></td>" +
-                "<td><select id='location$m' name='location$m' onChange='captureValue($m)'>" + locationOptions + "</select></td>" +
-                "<td><select id='variable$m' name='variable$m' onChange='captureValue($m)'>" + variableOptions + "</select></td>" +
-                "${(searchType == "Calendar Event") ? "<td><input id='endValue$m' name='endValue$m' type='text' value='${(mapping.containsKey("endValue")) ? mapping.endValue : ""}' onChange='captureValue($m)'></td>" : ""}" +
-                "<script>document.querySelector('#location$m').value= '${mapping.location}';document.querySelector('#variable$m').value= '${mapping.variable}';</script>" +
+                "<td><input id='textPrefix$m' name='textPrefix$m' type='text' aria-required='true' value='${mapping.textPrefix}' onChange='captureParseFieldValue($m)'></td>" +
+                "<td><select id='location$m' name='location$m' onChange='captureParseFieldValue($m)'>" + locationOptions + "</select></td>" +
+                "<td><select id='variableP$m' name='variableP$m' onChange='captureParseFieldValue($m)'>" + variableOptions + "</select></td>" +
+                "${(searchType == "Calendar Event") ? "<td><input id='endValue$m' name='endValue$m' type='text' value='${(mapping.containsKey("endValue")) ? mapping.endValue : ""}' onChange='captureParseFieldValue($m)'></td>" : ""}" +
+                "<script>document.querySelector('#location$m').value= '${mapping.location}';document.querySelector('#variableP$m').value= '${mapping.variable}';</script>" +
                 "<td>$deleteRow</td></tr>"
         }
 
         str += "</table>"
-        String newMapping = buttonLink("addRow", "+", "#007009", "25px")
+        String newMapping = buttonLink("addRowP", "+", "#007009", "25px")
         str += "<table id='parseMappings2' class='mdl-data-table tstat-col' style=';border:none'><thead><tr>" +
             "<th style='border-bottom:2px solid black;border-right:2px solid black;border-left:2px solid black;width:50px' title='New Mapping'>$newMapping</th>" +
             "<th style='border:none;color:green;font-size:25px'><b><i class='he-arrow-left2' style='vertical-align:middle'></i> New Mapping</b></th>" +
             "</tr></thead></table></div>" +
-            "<script>function captureValue(val) {" +
-            "var answer = {};answer.row = val; answer.textPrefix = document.getElementById('textPrefix' + val).value;answer.location = document.getElementById('location' + val).value;answer.variable = document.getElementById('variable' + val).value;if (document.getElementById('endValue' + val)) answer.endValue = document.getElementById('endValue' + val).value;answer = JSON.stringify(answer);" +
-            "var postBody = {'id': " + app.id + ",'name': 'mapping' + answer + ''};" +
+            "<script>function captureParseFieldValue(val) {" +
+            "var answer = {};answer.row = val; answer.textPrefix = document.getElementById('textPrefix' + val).value;answer.location = document.getElementById('location' + val).value;answer.variable = document.getElementById('variableP' + val).value;if (document.getElementById('endValue' + val)) answer.endValue = document.getElementById('endValue' + val).value;answer = JSON.stringify(answer);" +
+            "var postBody = {'id': " + app.id + ",'name': 'mappingP' + answer + ''};" +
             "\$.post('/installedapp/btn', postBody,function (msg) {if (msg.status == 'success') {/*window.location.reload()*/}}, 'json');}</script>"
         
         answer.mappingsTable = str
@@ -591,6 +600,89 @@ def getGmailSearchDescription() {
     answer += "<li>By default any email matching the search criteria will remain in the inbox but the unread label will be removed. This can be adjusted with the Matched Email Labels setting below.</li>"
     answer += "</ul>"
     
+    return answer
+}
+
+def getVariableUpdateDescription(searchType) {
+    def answer = [
+        title: "Update Hub Variables from ${searchType.toLowerCase()} details"
+    ]
+    answer.description = "Attributes from the ${searchType.toLowerCase()} can be mapped to <a href='/installedapp/direct/hubVariables' target='_blank'>Hub Variables</a> for additional rule and notification processing. After completing a ${searchType.toLowerCase()} refresh, the selected hub variables will be populated with the matching attribute values. Note: Option is only utilized for date/time attributes and will be ignored for others."
+
+    if (settings.updateVariable == true) {
+        def variableMappings = (atomicState.variableMappings) ? atomicState.variableMappings : [[attribute:"None",variable:"None",dateOption:"None"]]
+        HashMap globalVars = getAllGlobalVars()
+        def globalVarNames = globalVars.keySet()
+        String attributeOptions = "<option value='None'>Click to set</option>"
+        if (searchType == "Calendar Event") {
+            attributeOptions += "<option value='eventTitle'>eventTitle</option>"
+            attributeOptions += "<option value='eventLocation'>eventLocation</option>"
+            attributeOptions += "<option value='eventDescription'>eventDescription</option>"
+            attributeOptions += "<option value='eventStartTime'>eventStartTime</option>"
+            attributeOptions += "<option value='eventEndTime'>eventEndTime</option>"
+            attributeOptions += "<option value='eventAllDay'>eventAllDay</option>"
+            if (settings.setOffset) {
+                attributeOptions += "<option value='scheduleStartTime'>scheduleStartTime</option>"
+                attributeOptions += "<option value='scheduleEndTime'>scheduleEndTime</option>"
+            }
+        } else if (searchType == "Gmail") {
+            attributeOptions += "<option value='messageTitle'>messageTitle</option>"
+            attributeOptions += "<option value='messageBody'>messageBody</option>"
+            attributeOptions += "<option value='messageTo'>messageTo</option>"
+            attributeOptions += "<option value='messageFrom'>messageFrom</option>"
+            attributeOptions += "<option value='messageReceived'>messageReceived</option>"
+        } else {
+            attributeOptions += "<option value='taskTitle'>taskTitle</option>"
+            attributeOptions += "<option value='taskDueDate'>taskDueDate</option>"
+            if (settings.setOffset) {
+                attributeOptions += "<option value='scheduleStartTime'>scheduleStartTime</option>"
+            }
+        }
+        
+        String variableOptions = "<option value='None'>Click to set</option>"
+        for (int i = 0; i < globalVarNames.size(); i++) {
+            def optionVal = globalVarNames[i]
+            variableOptions += "<option value='" + optionVal + "'>" + optionVal + "</option>"
+        }
+        
+        String dateOptions = "<option value='None'>None</option>"
+        dateOptions += "<option value='dateTime'>Date and Time</option>"
+        dateOptions += "<option value='date'>Date Only</option>"
+        dateOptions += "<option value='time'>Time Only</option>"
+        
+        String str = "<script src='https://code.iconify.design/iconify-icon/1.0.0/iconify-icon.min.js'></script>"
+        str += "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" +
+            "</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black' id='variableMappings'>" +
+            "<thead><tr style='border-bottom:2px solid black'>" + 
+            "<th>Attribute</th>" +
+            "<th>Variable</th>" +
+            "<th>Option</th>" +
+            "<th><iconify-icon icon='ion:trash-sharp'></iconify-icon></th></tr></thead>"
+        for (int m = 0; m < variableMappings.size(); m++) {
+            def mapping = variableMappings[m]
+            String deleteRow = buttonLink("deleteRowA" + m, "<iconify-icon icon='ion:trash-sharp'></iconify-icon>", "#FF0000", "20px")
+            str += "<tr style='color:black'>" + 
+                "<td><select id='attribute$m' name='attribute$m' onChange='captureUpdateVariableValue($m)'>" + attributeOptions + "</select></td>" +
+                "<td><select id='variableA$m' name='variableA$m' onChange='captureUpdateVariableValue($m)'>" + variableOptions + "</select></td>" +
+                "<td><select id='dateOption$m' name='dateOption$m' onChange='captureUpdateVariableValue($m)'>" + dateOptions + "</select></td>" +
+                "<script>document.querySelector('#attribute$m').value= '${mapping.attribute}';document.querySelector('#variableA$m').value= '${mapping.variable}';document.querySelector('#dateOption$m').value= '${mapping.dateOption}';</script>" +
+                "<td>$deleteRow</td></tr>"
+        }
+
+        str += "</table>"
+        String newMapping = buttonLink("addRowA", "+", "#007009", "25px")
+        str += "<table id='variableMappings2' class='mdl-data-table tstat-col' style=';border:none'><thead><tr>" +
+            "<th style='border-bottom:2px solid black;border-right:2px solid black;border-left:2px solid black;width:50px' title='New Mapping'>$newMapping</th>" +
+            "<th style='border:none;color:green;font-size:25px'><b><i class='he-arrow-left2' style='vertical-align:middle'></i> New Mapping</b></th>" +
+            "</tr></thead></table></div>" +
+            "<script>function captureUpdateVariableValue(val) {" +
+            "var answer = {};answer.row = val; answer.attribute = document.getElementById('attribute' + val).value;answer.variable = document.getElementById('variableA' + val).value;answer.dateOption = document.getElementById('dateOption' + val).value;answer = JSON.stringify(answer);" +
+            "var postBody = {'id': " + app.id + ",'name': 'mappingA' + answer + ''};" +
+            "\$.post('/installedapp/btn', postBody,function (msg) {if (msg.status == 'success') {/*window.location.reload()*/}}, 'json');}</script>"
+        
+        answer.mappingsTable = str
+    }
+
     return answer
 }
 
@@ -655,11 +747,19 @@ def initialize() {
         }
     }
     
-    if (settings.parseField == true) {
+    if (settings.parseField == true || settings.updateVariable == true) {
         removeAllInUseGlobalVar()
-        def parseMappings = atomicState.parseMappings
-        for (int i = 0; i < parseMappings.size(); i++) {
-            def variableName = parseMappings[i].variable
+        def i, mappings
+        
+        mappings = atomicState.parseMappings
+        for (i = 0; i < mappings.size(); i++) {
+            def variableName = mappings[i].variable
+            addInUseGlobalVar(variableName)
+        }
+        
+        mappings = atomicState.variableMappings
+        for (i = 0; i < mappings.size(); i++) {
+            def variableName = mappings[i].variable
             addInUseGlobalVar(variableName)
         }
     }
@@ -1271,6 +1371,18 @@ def runAdditionalActions(items) {
                     }
                 }
                 
+                if (settings.updateVariable != true) {
+                    logMsg.push("updateVariable: ${settings.updateVariable}, not updating variables")
+                } else {
+                    def variableUpdates = gatherVariableUpdateMappings(item)
+                    logMsg.push("Processing variable updates ${scheduleItem}, variableUpdates: ${variableUpdates}")
+                    def variableUpdatesKeys = variableUpdates.keySet()
+                    for (int v = 0; v < variableUpdatesKeys.size(); v++) {
+                        def key = variableUpdatesKeys[v]
+                        updateHubVariable("runAdditionalActions", key, variableUpdates[key])
+                    }
+                }
+                
                 logMsg.push("additionalActions: ${additionalActions}")
                 if (!additionalActions.isEmpty()) {
                     item.additionalActions = additionalActions
@@ -1647,6 +1759,45 @@ def gatherControlSwitches(item) {
         answer = matchSwitchList
     } else {
         logMsg.push("no matched commands")
+    }
+    
+    logMsg.push("answer: ${answer}")
+    logDebug("${logMsg}")
+    return answer
+}
+
+def gatherVariableUpdateMappings(item) {
+    def logMsg = ["gatherFieldMappings - item: ${item}"]
+    def answer = [:]
+    def variableMappings = atomicState.variableMappings
+    for (int i = 0; i < variableMappings.size(); i++) {
+        def variableMapping = variableMappings[i]
+        def variable = variableMapping.variable
+        def option = variableMapping.dateOption
+        def value = item[variableMapping.attribute]
+        
+        //Variable dates must be in a certain date format
+        if (getObjectClassName(value) == "java.util.Date") {
+            value = formatDateTime(value, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+        }
+        
+        switch (option) {
+            case "None":
+                break
+            case "dateTime":
+                //Nothing to change
+                break
+            case "date":
+                //Dates must be in this format: 2022-10-13T99:99:99:999-9999
+                value = value.toString().split("T")[0] + "T99:99:99:999-9999"
+                break
+            case "time":
+                //Times must be in this format: 9999-99-99T14:25:09.009-0700
+                value = "9999-99-99T" + value.toString().split("T")[1]
+                break
+        }
+        
+        answer[variable] = value
     }
     
     logMsg.push("answer: ${answer}")
@@ -2211,15 +2362,17 @@ def compare2Items(current, previous) {
     return answer
 }
 
-def formatDateTime(dateTime) {
+def formatDateTime(dateTime,dateFormat=null) {
     if (dateTime == null || dateTime == " ") {
         return
     }
     
     def defaultDateFormat = "yyyy-MM-dd HH:mm:ss"
     def dateTimeFormat, sdf
-    if (settings.dateFormat != null && settings.dateFormat != "Other") {
-        def dateFormat = settings.dateFormat
+    if (dateFormat != null) {
+        dateTimeFormat = dateFormat
+    } else if (settings.dateFormat != null && settings.dateFormat != "Other") {
+        dateFormat = settings.dateFormat
         def timeFormat = (location.getTimeFormat() == 24) ? "HH:mm:ss" : "hh:mm:ss a"
         dateTimeFormat = dateFormat + " " + timeFormat
     } else if (settings.dateFormat != null) {
@@ -2279,8 +2432,9 @@ private dVersion() {
 }
 
 def appButtonHandler(btn) {
-    if (btn.startsWith("mapping")) {
-        def rowData = btn.replace("mapping", "")
+    //log.debug "btn: ${btn}"
+    if (btn.startsWith("mappingP")) {
+        def rowData = btn.replace("mappingP", "")
         def slurper = new JsonSlurper()
         rowData = slurper.parseText(rowData)
         def parseMappings = (atomicState.parseMappings) ?:[]
@@ -2296,12 +2450,38 @@ def appButtonHandler(btn) {
         return
     }
     
-    if (btn.startsWith("deleteRow")) {
-        def rowNumber = btn.replace("deleteRow", "")
+    if (btn.startsWith("mappingA")) {
+        def rowData = btn.replace("mappingA", "")
+        def slurper = new JsonSlurper()
+        rowData = slurper.parseText(rowData)
+        def variableMappings = (atomicState.variableMappings) ?:[]
+        variableMappings[rowData.row] = [
+            attribute: rowData.attribute,
+            variable: rowData.variable,
+            dateOption: (getGlobalVar(rowData.variable).type == "datetime") ? rowData.dateOption : "None"
+        ]
+        if (rowData.containsKey("endValue")) {
+            variableMappings[rowData.row].endValue = rowData.endValue
+        }
+        atomicState.variableMappings = variableMappings
+        return
+    }
+    
+    if (btn.startsWith("deleteRowP")) {
+        def rowNumber = btn.replace("deleteRowP", "")
         rowNumber = rowNumber.toInteger()
         def parseMappings = atomicState.parseMappings
         parseMappings.remove(rowNumber)
         atomicState.parseMappings = parseMappings
+        return
+    }
+    
+    if (btn.startsWith("deleteRowA")) {
+        def rowNumber = btn.replace("deleteRowA", "")
+        rowNumber = rowNumber.toInteger()
+        def variableMappings = atomicState.variableMappings
+        variableMappings.remove(rowNumber)
+        atomicState.variableMappings = variableMappings
         return
     }
     
@@ -2315,10 +2495,15 @@ def appButtonHandler(btn) {
         case "refreshButton":
             poll()
 			return
-        case "addRow":
+        case "addRowP":
             def parseMappings = atomicState.parseMappings
             parseMappings.push([textPrefix:"",location:"SameLine",variable:"None"])
             atomicState.parseMappings = parseMappings
+            return
+        case "addRowA":
+            def variableMappings = atomicState.variableMappings
+            variableMappings.push([attribute:"None",variable:"None",dateOption:"None"])
+            atomicState.variableMappings = variableMappings
             return
     }
     updated()
