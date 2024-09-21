@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.0" }
+def appVersion() { return "4.7.1" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -22,6 +22,7 @@ def appVersion() { return "4.7.0" }
  */
 import hubitat.helper.RMUtils
 import groovy.json.JsonSlurper
+import org.apache.commons.lang3.time.DateUtils
 
 definition(
     name: "GCal Search Trigger",
@@ -612,7 +613,7 @@ def getVariableUpdateDescription(searchType) {
     if (settings.updateVariable == true) {
         def variableMappings = (atomicState.variableMappings) ? atomicState.variableMappings : [[attribute:"None",variable:"None",dateOption:"None"]]
         HashMap globalVars = getAllGlobalVars()
-        def globalVarNames = globalVars.keySet()
+        def globalVarNames = globalVars.keySet().sort()
         String attributeOptions = "<option value='None'>Click to set</option>"
         if (searchType == "Calendar Event") {
             attributeOptions += "<option value='eventTitle'>eventTitle</option>"
@@ -907,7 +908,9 @@ def getNextEvents() {
                     def currentEventEndTime = new Date(item.eventEndTime.getTime())
                     def nextEventStartTime = new Date(newItem.eventStartTime.getTime())
                     if (settings.sequentialEvent) {
-                        if (settings.includeAllDay && item.eventAllDay && newItem.eventAllDay) {
+                        //Remove at later date
+                        //if (settings.includeAllDay && item.eventAllDay && newItem.eventAllDay) {
+                        if (settings.includeAllDay && item.eventAllDay) {
                             tempEndTime = currentEventEndTime.getTime()
                             tempEndTime = tempEndTime + 60
                             currentEventEndTime.setTime(tempEndTime)
@@ -1154,7 +1157,7 @@ def getNextMessages() {
 
 def runAdditionalActions(items) {
     def logMsg = ["runAdditionalActions - items: ${items}"]
-    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true && settings.parseField != true && settings.toggleOtherSwitches != true) {
+    if (settings.controlSwitches != true && settings.sendNotification != true && settings.runRuleActions != true && settings.parseField != true && settings.toggleOtherSwitches != true && settings.updateVariable!= true) {
         logMsg.push("No additional actions to run")
     } else {
         def previousItems = atomicState.item
@@ -1374,12 +1377,16 @@ def runAdditionalActions(items) {
                 if (settings.updateVariable != true) {
                     logMsg.push("updateVariable: ${settings.updateVariable}, not updating variables")
                 } else {
-                    def variableUpdates = gatherVariableUpdateMappings(item)
-                    logMsg.push("Processing variable updates ${scheduleItem}, variableUpdates: ${variableUpdates}")
-                    def variableUpdatesKeys = variableUpdates.keySet()
-                    for (int v = 0; v < variableUpdatesKeys.size(); v++) {
-                        def key = variableUpdatesKeys[v]
-                        updateHubVariable("runAdditionalActions", key, variableUpdates[key])
+                    //Only run variable update on the first item. Sequential event settings may impact variable values.
+                    if (i == 0) {
+                        def variableUpdates = gatherVariableUpdateMappings(item)
+                        logMsg.push("Processing variable updates variableUpdates: ${variableUpdates}")
+                        def variableUpdatesKeys = variableUpdates.keySet()
+                        for (int v = 0; v < variableUpdatesKeys.size(); v++) {
+                            def key = variableUpdatesKeys[v]
+                            updateHubVariable("runAdditionalActions", key, variableUpdates[key])
+                        }
+                        setGlobalVar("Time", "2024-09-23T23:59:59.000-0400")
                     }
                 }
                 
@@ -1767,7 +1774,7 @@ def gatherControlSwitches(item) {
 }
 
 def gatherVariableUpdateMappings(item) {
-    def logMsg = ["gatherFieldMappings - item: ${item}"]
+    def logMsg = ["gatherVariableUpdateMappings - item: ${item}"]
     def answer = [:]
     def variableMappings = atomicState.variableMappings
     for (int i = 0; i < variableMappings.size(); i++) {
@@ -2399,6 +2406,8 @@ def parseDateTime(dateTime) {
         dateTime = sdf.parse(dateTime)
     }
     
+    //Set milliseconds to 000
+    dateTime = DateUtils.setMilliseconds(dateTime, 000);
     return dateTime
 }
 
@@ -2458,7 +2467,7 @@ def appButtonHandler(btn) {
         variableMappings[rowData.row] = [
             attribute: rowData.attribute,
             variable: rowData.variable,
-            dateOption: (getGlobalVar(rowData.variable).type == "datetime") ? rowData.dateOption : "None"
+            dateOption: (rowData.variable != "None" && getGlobalVar(rowData.variable).type == "datetime") ? rowData.dateOption : "None"
         ]
         if (rowData.containsKey("endValue")) {
             variableMappings[rowData.row].endValue = rowData.endValue
