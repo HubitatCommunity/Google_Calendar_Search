@@ -545,7 +545,7 @@ def getParseFieldDescription(searchType) {
     if (settings.parseField == true) {
         def parseMappings = (atomicState.parseMappings) ? atomicState.parseMappings : [[textPrefix:"",location:"SameLine",variable:"None",endValue:""]]
         HashMap globalVars = getAllGlobalVars()
-        def globalVarNames = globalVars.keySet()
+	def globalVarNames = globalVars.keySet().sort()
         String locationOptions = "<option value='SameLine'>Same Line</option><option value='NextLine'>Next Line</option>"
         String variableOptions = "<option value='None'>Click to set</option>"
         for (int i = 0; i < globalVarNames.size(); i++) {
