@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.1" }
+def appVersion() { return "4.7.2" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -52,8 +52,8 @@ def mainPage() {
 			}
             if (state.refreshed) {
                 def refreshText = parseDateTime(state.refreshed)
-                if (state.installed == true && settings.createChildSwitch && state.deviceID) {
-                    def childSwitch = getChildDevice(state.deviceID)
+                if (state.installed == true && settings.createChildSwitch && childCreated() == true) {
+                    def childSwitch = getChildDevice("GCal_${app.id}")
                     refreshText = "<a href='/device/edit/$childSwitch.id' target='_blank' title='Open Device Page for $childSwitch'>Last Refreshed</a>:\n${refreshText}"
                 } else {
                     refreshText = "Last Refreshed:\n${refreshText}"
@@ -252,6 +252,9 @@ def mainPage() {
                         if (settings.setNextEvent == true) {
                             paragraph "${parent.getFormat("text", "<u>Next Event Detail</u>: " + getNotificationMsgDescription(settings.searchType, false))}"
                             input name: "nextEventDetail", type: "text", title: "Next Event Detail", required: false, defaultValue: "%eventTitle%"
+                        }
+                        if (settings.setOffset == true) {
+                            paragraph "${parent.getFormat("text", "<b>Note</b>: The child switch will be populated with the calendar event start and end timestamps in the eventStartTime and eventEndTime state attributes. By default these values will be the actual start and end timestamps. There is an optional preference on the child switch to set these to the offset values instead.")}"
                         }
                     }
                 }
@@ -545,7 +548,7 @@ def getParseFieldDescription(searchType) {
     if (settings.parseField == true) {
         def parseMappings = (atomicState.parseMappings) ? atomicState.parseMappings : [[textPrefix:"",location:"SameLine",variable:"None",endValue:""]]
         HashMap globalVars = getAllGlobalVars()
-	def globalVarNames = globalVars.keySet().sort()
+        def globalVarNames = globalVars.keySet().sort()
         String locationOptions = "<option value='SameLine'>Same Line</option><option value='NextLine'>Next Line</option>"
         String variableOptions = "<option value='None'>Click to set</option>"
         for (int i = 0; i < globalVarNames.size(); i++) {
@@ -616,27 +619,31 @@ def getVariableUpdateDescription(searchType) {
         def globalVarNames = globalVars.keySet().sort()
         String attributeOptions = "<option value='None'>Click to set</option>"
         if (searchType == "Calendar Event") {
-            attributeOptions += "<option value='eventTitle'>eventTitle</option>"
-            attributeOptions += "<option value='eventLocation'>eventLocation</option>"
-            attributeOptions += "<option value='eventDescription'>eventDescription</option>"
-            attributeOptions += "<option value='eventStartTime'>eventStartTime</option>"
-            attributeOptions += "<option value='eventEndTime'>eventEndTime</option>"
-            attributeOptions += "<option value='eventAllDay'>eventAllDay</option>"
+            attributeOptions += "<option value='eventTitle'>Title</option>"
+            attributeOptions += "<option value='eventLocation'>Location</option>"
+            attributeOptions += "<option value='eventDescription'>Description</option>"
+            attributeOptions += "<option value='eventStartTime'>Start Time (Actual)</option>"
+            attributeOptions += "<option value='eventEndTime'>End Time (Actual)</option>"
+            attributeOptions += "<option value='eventAllDay'>All Day</option>"
+            attributeOptions += "<option value='eventReminderMin'>Reminder Minutes</option>"
             if (settings.setOffset) {
-                attributeOptions += "<option value='scheduleStartTime'>scheduleStartTime</option>"
-                attributeOptions += "<option value='scheduleEndTime'>scheduleEndTime</option>"
+                attributeOptions += "<option value='scheduleStartTime'>Start Time (Offset)</option>"
+                attributeOptions += "<option value='scheduleEndTime'>End Time (Offset)</option>"
+            }
+            if (settings.setNextEvent == true) {
+                attributeOptions += "<option value='nextEvent'>Next Event Detail</option>"
             }
         } else if (searchType == "Gmail") {
-            attributeOptions += "<option value='messageTitle'>messageTitle</option>"
-            attributeOptions += "<option value='messageBody'>messageBody</option>"
-            attributeOptions += "<option value='messageTo'>messageTo</option>"
-            attributeOptions += "<option value='messageFrom'>messageFrom</option>"
-            attributeOptions += "<option value='messageReceived'>messageReceived</option>"
+            attributeOptions += "<option value='messageTitle'>Title</option>"
+            attributeOptions += "<option value='messageBody'>Body</option>"
+            attributeOptions += "<option value='messageTo'>To</option>"
+            attributeOptions += "<option value='messageFrom'>From</option>"
+            attributeOptions += "<option value='messageReceived'>Received</option>"
         } else {
-            attributeOptions += "<option value='taskTitle'>taskTitle</option>"
-            attributeOptions += "<option value='taskDueDate'>taskDueDate</option>"
+            attributeOptions += "<option value='taskTitle'>Title</option>"
+            attributeOptions += "<option value='taskDueDate'>Due Date (Actual)</option>"
             if (settings.setOffset) {
-                attributeOptions += "<option value='scheduleStartTime'>scheduleStartTime</option>"
+                attributeOptions += "<option value='scheduleStartTime'>Due Date (Offset)</option>"
             }
         }
         
@@ -715,10 +722,9 @@ def initialize() {
     }
     
     if (settings.createChildSwitch == true) {
-        state.deviceID = "GCal_${app.id}"
-        def childDevice = getChildDevice(state.deviceID)
+        def childDevice = getChildDevice("GCal_${app.id}")
         if (!childDevice) {
-            logDebug("initialize - creating device: deviceID: ${state.deviceID}")
+            logDebug("initialize - creating device: deviceID: GCal_${app.id}")
             childDevice = addChildDevice("HubitatCommunity", "GCal Switch", "GCal_${app.id}", null, [name: "GCal Switch", label: deviceName])
             childDevice.updateSetting("isDebugEnabled",[value:"${isDebugEnabled}",type:"bool"])
             childDevice.updateSetting("switchValue",[value:"${switchValue}",type:"enum"])
@@ -752,13 +758,13 @@ def initialize() {
         removeAllInUseGlobalVar()
         def i, mappings
         
-        mappings = atomicState.parseMappings
+        mappings = (atomicState.parseMappings) ?:[]
         for (i = 0; i < mappings.size(); i++) {
             def variableName = mappings[i].variable
             addInUseGlobalVar(variableName)
         }
         
-        mappings = atomicState.variableMappings
+        mappings = (atomicState.variableMappings) ?:[]
         for (i = 0; i < mappings.size(); i++) {
             def variableName = mappings[i].variable
             addInUseGlobalVar(variableName)
@@ -774,9 +780,14 @@ def getDefaultSwitchValue() {
 
 def poll() {
     if (settings.createChildSwitch == true) {
-        def childDevice = getChildDevice(state.deviceID)
-        logDebug "poll - childDevice: ${childDevice}"
-        childDevice.poll()
+        def childDevice = getChildDevice("GCal_${app.id}")
+        if (childDevice) {
+            logDebug "poll - childDevice: ${childDevice}"
+            childDevice.poll()
+        } else {
+            logDebug "poll - no childDevice"
+            getNextItems()
+        }
     } else {
         logDebug "poll - no childDevice"
         getNextItems()
@@ -1788,23 +1799,28 @@ def gatherVariableUpdateMappings(item) {
             value = formatDateTime(value, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
         }
         
-        switch (option) {
-            case "None":
+        try {
+            switch (option) {
+                case "None":
                 break
-            case "dateTime":
+                case "dateTime":
                 //Nothing to change
                 break
-            case "date":
+                case "date":
                 //Dates must be in this format: 2022-10-13T99:99:99:999-9999
                 value = value.toString().split("T")[0] + "T99:99:99:999-9999"
                 break
-            case "time":
+                case "time":
                 //Times must be in this format: 9999-99-99T14:25:09.009-0700
                 value = "9999-99-99T" + value.toString().split("T")[1]
                 break
+            }
+
+            answer[variable] = value
+
+        } catch (e) {
+            log.error "Error assigning '${variable}' Hub Variable with the value '${value}'. Please check your Additional Actions/Update Hub Variable mappings."
         }
-        
-        answer[variable] = value
     }
     
     logMsg.push("answer: ${answer}")
@@ -2580,6 +2596,31 @@ def upgradeSettings() {
         app.removeSetting("reverseSwitches")
         app.removeSetting("controlOtherSwitches")
         upgraded = true
+    }
+    
+    if (state.containsKey("deviceID")) {
+        state.remove("deviceID")
+        upgraded = true
+    }
+    
+    if (appVersion().startsWith("4.7.2")) {
+        if (settings.parseField == true || settings.updateVariable == true) {
+            removeAllInUseGlobalVar()
+            def i, mappings
+
+            mappings = (state.parseMappings) ?:[]
+            for (i = 0; i < mappings.size(); i++) {
+                def variableName = mappings[i].variable
+                addInUseGlobalVar(variableName)
+            }
+
+            mappings = (state.variableMappings) ?:[]
+            for (i = 0; i < mappings.size(); i++) {
+                def variableName = mappings[i].variable
+                addInUseGlobalVar(variableName)
+            }
+            upgraded = true
+        }
     }
     
     if (upgraded) {
