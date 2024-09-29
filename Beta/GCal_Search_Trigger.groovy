@@ -1509,7 +1509,10 @@ def triggerAdditionalAction(ArrayList data=[]) {
                 }
                 break
             case "triggerEndNotification":
-                triggerEndNotification(itemID)
+                //triggerEndNotification(itemID)
+                if ((settings.includeAllItems == false) || (settings.includeAllItems == true && i == 0)) {
+                    triggerEndNotification(itemID)
+                }
                 break
             case "triggerStartRule":
                 triggerStartRule(itemID)
