@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.2" }
+def appVersion() { return "4.7.3" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -1503,10 +1503,16 @@ def triggerAdditionalAction(ArrayList data=[]) {
                 triggerReminderNotification(itemID)
                 break
             case "triggerStartNotification":
-                triggerStartNotification(itemID)
+                //triggerStartNotification(itemID)
+                if ((settings.includeAllItems == false) || (settings.includeAllItems == true && i == 0)) {
+                    triggerStartNotification(itemID)
+                }
                 break
             case "triggerEndNotification":
-                triggerEndNotification(itemID)
+                //triggerEndNotification(itemID)
+                if ((settings.includeAllItems == false) || (settings.includeAllItems == true && i == 0)) {
+                    triggerEndNotification(itemID)
+                }
                 break
             case "triggerStartRule":
                 triggerStartRule(itemID)
