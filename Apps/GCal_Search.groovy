@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.3" }
+def appVersion() { return "4.7.4" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -1171,15 +1171,15 @@ def createMimeMessage(msg) {
     def boundary = 'hubitat_attachment';
 
     def mimeBody = [
-        'Content-Type: multipart/mixed; boundary=' + boundary,
         'MIME-Version: 1.0',
         'To: ' + msg.to,
         'From: ' + msg.from,
-        'Subject: ' + msg.subject + nl,
+        'Subject: ' + msg.subject,
+        'Content-Type: multipart/mixed; boundary=' + boundary + nl,
         '--' + boundary,
 
         'Content-Type: text/html; charset=UTF-8',
-        'Content-Transfer-Encoding: base64',
+        'Content-Transfer-Encoding: base64' + nl,
         msg.body.encodeAsBase64() + nl
     ];
     
