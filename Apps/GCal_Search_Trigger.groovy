@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.4" }
+def appVersion() { return "4.7.5" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -906,7 +906,8 @@ def getNextEvents() {
         // If Google Matching is disabled, check for match
         if (settings.GoogleMatching == false && items.size() > 0) {
             def eventField = (settings.searchField == "title") ? "eventTitle" : "eventLocation"
-            items = matchItem(items, caseSensitive, search, eventField)
+            //items = matchItem(items, caseSensitive, search, eventField)
+            items = matchItem(items, caseSensitive, search, eventField).sort { a, b -> a.eventStartTime <=> b.eventStartTime }
         }
         
         for (int i = 0; i < items.size(); i++) {
@@ -2185,7 +2186,11 @@ def gatherVariableNames(msg) {
         def pattern = /(?<=%).*?(?=%)/
         def matches = (msg =~ pattern).findAll()
         for (int i = 0; i < matches.size(); i++) {
-            def match = matches[i].trim()
+            def match = matches[i]
+            //if a match ends with a space it is not a valid variable
+            if (match.endsWith(" ")) continue
+            
+            match = match.trim()
             def textMatch = "%" + match + "%"
             if (msg.indexOf(textMatch) > -1) {
                 answer.push(match)
