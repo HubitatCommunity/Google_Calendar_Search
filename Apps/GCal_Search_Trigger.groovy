@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.5" }
+def appVersion() { return "4.7.6" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -205,7 +205,7 @@ def mainPage() {
                         input name: "endTimeHours", type: "number", title: "Number of Hours from Current Time (How many hours into the future at the time of the search, would you like to query for events?)", required: true
                     }
                     if (settings.searchType == "Calendar Event") {
-                        paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential event matching the search criteria. This prevents the switch from toggling and additonal actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
+                        paragraph "${parent.getFormat("text", "<u>Sequential Event Preference</u>: By default the Event End Time will be set to the end date of the last sequential (back to back) event matching the search criteria. This prevents the switch from toggling and additional actions triggering multiple times when using periodic searches. If this setting is set to false, it is recommended to set an Event End Offset in the optional setting below. If no Event End Offset is set, the scheduled trigger will be adjusted by -1 minute to ensure the switch has time to toggle.")}"
                         input name: "sequentialEvent", type: "bool", title: "Expand end date for sequential events?", defaultValue: true
                     }
                     paragraph "${parent.getFormat("text", "<u>Delay to ${settings.searchType} Start Preference</u>: By default the switch will toggle and additional actions will trigger based on the matching ${settings.searchType} Start Time. If this setting is set to false, the switch will toggle and additional actions will trigger at the run time of this search trigger if a match is found. The switch will continue to toggle and additional actions will trigger again based on the Event End Time (if applicable).")}"
@@ -247,9 +247,10 @@ def mainPage() {
                         input name: "dateFormatOther", type: "text", title: "Enter custom date format", required: true
                     }
                     if (settings.searchType == "Calendar Event") {
-                        paragraph "${parent.getFormat("text", "<u>Set Next Event on Child Switch</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. Set this setting to true if you want the nextEvent attribute on the child switch to be set with details of other events found.")}"
-                        input name: "setNextEvent", type: "bool", title: "Set Next Event on Child Switch", defaultValue: false, required: false, submitOnChange: true
+                        paragraph "${parent.getFormat("text", "<u>Set Next Event on Child Switch</u>: Based on the defined Search Range, multiple items may be found matching the search criteria. Set this setting to true if you want the nextEvent attribute on the child switch to be set with details of other events found. By default the first event found is excluded, set Include first event to include it within this string.")}"
+                        input name: "setNextEvent", type: "bool", title: "Set Next Event on Child Switch", defaultValue: false, required: false, submitOnChange: true, width: 3
                         if (settings.setNextEvent == true) {
+                            input name: "includeFirstEvent", type: "bool", title: "Include the first/current event", defaultValue: false, required: false, submitOnChange: false, width: 3
                             paragraph "${parent.getFormat("text", "<u>Next Event Detail</u>: " + getNotificationMsgDescription(settings.searchType, false))}"
                             input name: "nextEventDetail", type: "text", title: "Next Event Detail", required: false, defaultValue: "%eventTitle%"
                         }
@@ -856,11 +857,22 @@ def getNextEvents() {
     if (items == null || !items instanceof ArrayList) {
         return items
     }
+    /* else if (items == "TimeoutException") {
+        if (!state.containsKey("apiRetry")) atomicState.apiRetry = [:]
+        if (!state.apiRetry.containsKey("getNextEvents")) atomicState.apiRetry.getNextEvents = 0
+        state.apiRetry.getNextEvents += 1
+        if (state.apiRetry.getNextEvents < 3) {
+            runIn(30, getNextEvents)
+            return null
+        }
+    }
+    */
     logMsg.push("getNextEvents - BEFORE search: ${search}, items: ${items} AFTER ")
     
     def foundMatch = false
     def sequentialEventOffset = false
     if (items && items.size() > 0) {
+        //state.apiRetry.getNextEvents = 0
         // Filter out all day events if set in settings
         def tempItems,tempItem
         if (settings.includeAllDay == false) {
@@ -973,12 +985,21 @@ def getNextEvents() {
             items[i] = item
         }
         
+        // If Sequential Events enabled and Start Offset, check if found event end is after the next event start
+        if (settings.sequentialEvent && settings.setOffset && settings.offsetStart != null && settings.offsetStart != "" && items.size() > 1) {
+            def item1EndTime = new Date(items[0].scheduleEndTime.getTime())
+            def item2StartTime = new Date(items[1].scheduleStartTime.getTime())
+            if (item2StartTime <= item1EndTime) {
+                items[0].scheduleEndTime = items[1].scheduleEndTime
+            }
+        }
+        
         logMsg.push("\nfoundMatch: ${foundMatch}")
         if (foundMatch) {
             item  = items[0]
             if (settings.setNextEvent == true && settings.nextEventDetail != null) {
                 def nextEventDetail = []
-                for (int n = 1; n < items.size(); n++) {
+                for (int n = (settings.includeFirstEvent == true) ? 0 : 1; n < items.size(); n++) {
                     tempItem = items[n]
                     def nextEventMsg = getVariableValues("getNextEvents", settings.nextEventDetail, tempItem)
                     nextEventDetail.push(nextEventMsg)
