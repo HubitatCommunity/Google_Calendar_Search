@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.5" }
+def appVersion() { return "4.7.6" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -600,6 +600,9 @@ def apiGet(fromFunction, uri, path, queryParams) {
                     log.error "apiGet - fromFunction: ${fromFunction}, status: ${e.response.status}, path: ${path}, error: ${e}, data: ${e.getResponse().getData()}"
                     apiResponse = "error"
                 }
+            /*} else if (e.toString().indexOf("TimeoutException") > -1 && fromFunction.endsWith("getNextEvents")) {
+                log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
+                apiResponse = "TimeoutException"*/
             } else {
                 log.error "apiGet - fromFunction: ${fromFunction}, path: ${path}, error: ${e}"
             }
@@ -792,7 +795,7 @@ def getNextEvents(watchCalendar, GoogleMatching, search, endTimePreference, offs
 
     def events = apiGet("${appName}-getNextEvents", uri, path, queryParams)
     logMsg.push("queryParams: ${queryParams}, events: ${events}")
-    
+    //if (events == null || !events instanceof ArrayList || events == "TimeoutException") {
     if (events == null || !events instanceof ArrayList) {
         eventList = events
     } else if (events && events.items && events.items.size() > 0) {
