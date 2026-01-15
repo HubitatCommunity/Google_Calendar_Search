@@ -1,4 +1,4 @@
-def driverVersion() { return "4.7.5" }
+def driverVersion() { return "4.7.6" }
 /**
  *  Gmail Notification Device Driver
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Driver/Gmail_Notification_Device.groovy
@@ -46,6 +46,21 @@ def initialize() {
 
 def parse(String description) {
 
+}
+
+//Added for use with MakerAPI where commas come across as separate parameters
+def deviceNotification(message1, message2, message3, message4) {
+    deviceNotification(message1 + "," + message2 + "," + message3 + "," + message4)
+}
+
+//Added for use with MakerAPI where commas come across as separate parameters
+def deviceNotification(message1, message2, message3) {
+    deviceNotification(message1 + "," + message2 + "," + message3)
+}
+
+//Added for use with MakerAPI where commas come across as separate parameters
+def deviceNotification(message1, message2) {
+    deviceNotification(message1 + "," + message2)
 }
 
 def deviceNotification(message) {
