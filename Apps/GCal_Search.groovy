@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.6" }
+def appVersion() { return "4.7.7" }
 /**
  *  GCal Search
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search.groovy
@@ -39,6 +39,7 @@ definition(
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
+    menu: "Integrations"
 )
 
 preferences {
@@ -495,8 +496,10 @@ private refreshAuthToken() {
         }
         		
         def refreshParams = [
-            uri   : "https://www.googleapis.com",
-            path  : "/oauth2/v4/token",
+            //uri   : "https://www.googleapis.com",
+            //path  : "/oauth2/v4/token",
+            uri : "https://oauth2.googleapis.com/token",
+            headers : ["Content-Type": "application/x-www-form-urlencoded"],
             body : [
                 refresh_token: "${refTok}", 
                 client_secret: getClientSecret(),
