@@ -1,4 +1,4 @@
-def appVersion() { return "4.7.6" }
+def appVersion() { return "4.7.7" }
 /**
  *  GCal Search Trigger Child Application
  *  https://raw.githubusercontent.com/HubitatCommunity/Google_Calendar_Search/main/Apps/GCal_Search_Trigger.groovy
@@ -36,6 +36,7 @@ definition(
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
+    menu: "Integrations"
 )
 
 preferences {
@@ -1872,6 +1873,7 @@ def triggerStartVariableUpdate(itemID) {
     if (item.containsKey("additionalActions") && item.additionalActions.containsKey("triggerStartVariableUpdate") && item.additionalActions.triggerStartVariableUpdate.containsKey("variableUpdates") && !item.additionalActions.triggerStartVariableUpdate.variableUpdates.isEmpty()) {
         def variableList = []
         def variableUpdates = item.additionalActions.triggerStartVariableUpdate.variableUpdates
+        logMsg.push("variableUpdates: ${variableUpdates}")
         def variableNameList = variableUpdates.keySet()
         for (int i = 0; i < variableNameList.size(); i++) {
             def variableName = variableNameList[i]
